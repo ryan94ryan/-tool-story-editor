@@ -3,46 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>天魔重生 劇情編輯器</title>
+<title>天魔重生 劇情編輯器 v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Segoe UI',sans-serif; background:#0d1117; color:#c9d1d9; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
-/* ─── Toolbar ─── */
+/* ── Toolbar ── */
 #toolbar {
   background:#161b22; border-bottom:1px solid #30363d;
-  padding:8px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0;
+  padding:6px 12px; display:flex; align-items:center; gap:6px; flex-shrink:0;
 }
-#toolbar h1 { font-size:15px; color:#f85149; margin-right:6px; white-space:nowrap; }
-.sep { width:1px; height:24px; background:#30363d; margin:0 4px; }
+#toolbar h1 { font-size:14px; color:#f85149; margin-right:4px; white-space:nowrap; }
+.sep { width:1px; height:22px; background:#30363d; margin:0 3px; }
 .btn {
-  padding:5px 12px; border:none; border-radius:5px; cursor:pointer;
+  padding:4px 10px; border:none; border-radius:5px; cursor:pointer;
   font-size:12px; font-weight:500; transition:filter .15s; white-space:nowrap;
 }
-.btn:hover { filter:brightness(1.15); }
-.btn-import  { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
-.btn-export  { background:#1f6feb; color:#fff; }
-.btn-layout  { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
-.btn-danger  { background:#da3633; color:#fff; }
-#status { margin-left:auto; font-size:11px; color:#8b949e; white-space:nowrap; }
+.btn:hover { filter:brightness(1.2); }
+.btn-primary   { background:#1f6feb; color:#fff; }
+.btn-secondary { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
+.btn-success   { background:#238636; color:#fff; }
+.btn-purple    { background:#6e40c9; color:#fff; }
 input[type=file] { display:none; }
+#status { margin-left:auto; font-size:11px; color:#8b949e; white-space:nowrap; }
 
-/* ─── Main Layout ─── */
+/* ── Dropdown ── */
+.dropdown { position:relative; display:inline-block; }
+.dropdown-menu {
+  display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999;
+  background:#21262d; border:1px solid #30363d; border-radius:6px;
+  min-width:200px; padding:4px 0;
+}
+.dropdown-menu.open { display:block; }
+.dropdown-item { padding:7px 14px; font-size:12px; cursor:pointer; white-space:nowrap; color:#c9d1d9; }
+.dropdown-item:hover { background:#30363d; }
+.dropdown-item.item-sep { border-top:1px solid #30363d; margin-top:4px; padding-top:9px; }
+
+/* ── Main Layout ── */
 #main { display:flex; flex:1; overflow:hidden; }
 
-/* ─── Canvas ─── */
-#cy-wrap { flex:1; position:relative; background:#0d1117; }
-#cy { width:100%; height:100%; }
+/* ── Sidebar ── */
+#sidebar {
+  width:170px; flex-shrink:0; background:#161b22; border-right:1px solid #30363d;
+  display:flex; flex-direction:column; overflow-y:auto;
+}
+.sb-section { padding:10px 12px 4px; font-size:10px; color:#484f58; letter-spacing:.06em; text-transform:uppercase; }
+.sb-item {
+  padding:7px 14px; font-size:12px; cursor:pointer;
+  border-left:3px solid transparent; transition:background .12s; user-select:none;
+}
+.sb-item:hover { background:#1c2330; }
+.sb-item.active { background:#1c2330; border-left-color:#1f6feb; color:#79c0ff; }
+.sb-badge { float:right; font-size:10px; color:#484f58; }
 
+/* ── Content ── */
+#content { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+
+/* Canvas */
+#cy-wrap { flex:1; position:relative; }
+#cy { width:100%; height:100%; }
 #empty-msg {
   position:absolute; inset:0; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:12px; pointer-events:none;
 }
 #empty-msg .big { font-size:48px; }
-#empty-msg p { color:#484f58; font-size:14px; text-align:center; line-height:1.8; }
-
-/* ─── Legend ─── */
+#empty-msg p { color:#484f58; font-size:13px; text-align:center; line-height:2; }
 #legend {
   position:absolute; bottom:12px; left:12px; background:rgba(22,27,34,.92);
   border:1px solid #30363d; border-radius:6px; padding:8px 12px; font-size:11px;
@@ -50,265 +77,390 @@ input[type=file] { display:none; }
 .li { display:flex; align-items:center; gap:7px; margin:3px 0; }
 .ld { width:11px; height:11px; border-radius:2px; }
 
-/* ─── Right Panel ─── */
-#panel {
-  width:300px; flex-shrink:0; background:#161b22; border-left:1px solid #30363d;
-  display:flex; flex-direction:column; overflow:hidden;
+/* ── FAB ── */
+#fab {
+  position:absolute; bottom:54px; right:16px;
+  display:flex; flex-direction:column; gap:8px; z-index:10;
 }
+#fab.hidden { display:none; }
+.fab-btn {
+  padding:8px 18px; border:none; border-radius:20px; cursor:pointer;
+  font-size:12px; font-weight:600; box-shadow:0 2px 10px rgba(0,0,0,.6);
+  transition:filter .15s, transform .12s;
+}
+.fab-btn:hover { filter:brightness(1.2); transform:scale(1.05); }
+.fab-group { background:#1f6feb; color:#fff; }
+.fab-se    { background:#6e40c9; color:#fff; }
+
+/* Flags Editor */
+#flags-wrap { flex:1; overflow-y:auto; padding:20px; display:none; }
+#flags-wrap.visible { display:block; }
+.flags-title { font-size:14px; color:#79c0ff; margin-bottom:16px; }
+.flags-table { width:100%; border-collapse:collapse; max-width:580px; }
+.flags-table th { text-align:left; padding:7px 10px; font-size:11px; color:#8b949e; border-bottom:1px solid #30363d; font-weight:500; }
+.flags-table td { padding:5px 6px; border-bottom:1px solid #21262d; }
+.flags-table tr:hover td { background:#161b22; }
+.flag-name { background:transparent; border:none; color:#79c0ff; font-size:12px; font-family:'Courier New',monospace; width:220px; padding:2px 4px; }
+.flag-val  { background:transparent; border:none; color:#c9d1d9; font-size:12px; font-family:'Courier New',monospace; width:90px; padding:2px 4px; }
+.flag-name:focus, .flag-val:focus { outline:1px solid #388bfd; border-radius:3px; }
+.flag-del { background:transparent; border:none; color:#484f58; cursor:pointer; font-size:14px; padding:0 5px; }
+.flag-del:hover { color:#f85149; }
+.flags-add { display:flex; gap:8px; margin-top:12px; max-width:580px; }
+.fadd-input {
+  background:#21262d; border:1px solid #30363d; border-radius:4px;
+  color:#c9d1d9; padding:5px 10px; font-size:12px; font-family:'Courier New',monospace;
+}
+.fadd-input:focus { outline:none; border-color:#388bfd; }
+
+/* ── Right Panel ── */
+#panel {
+  width:320px; flex-shrink:0; background:#161b22; border-left:1px solid #30363d;
+  display:flex; flex-direction:column; overflow:hidden; position:relative;
+  min-width:200px; max-width:680px;
+}
+/* Resize handle on left edge of panel */
+#panel-resize {
+  position:absolute; left:0; top:0; bottom:0; width:5px;
+  cursor:col-resize; z-index:5;
+  background:transparent; transition:background .15s;
+}
+#panel-resize:hover, #panel-resize.dragging { background:#388bfd55; }
+
 #ph { padding:10px 14px; background:#21262d; font-size:12px; font-weight:600; border-bottom:1px solid #30363d; }
 #pc { flex:1; padding:12px; overflow-y:auto; }
 .empty-panel { color:#484f58; font-size:12px; text-align:center; padding-top:40px; line-height:2; }
-
-.fl  { font-size:10px; color:#8b949e; margin-top:10px; margin-bottom:3px; }
-.fv  { font-size:12px; }
+.fl { font-size:10px; color:#8b949e; margin-top:10px; margin-bottom:3px; }
+.fv { font-size:12px; }
 #node-editor {
-  width:100%; min-height:180px; max-height:320px; resize:vertical;
+  width:100%; min-height:260px; resize:vertical;
   background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;
-  padding:8px; font-family:'Courier New',monospace; font-size:11px; line-height:1.5;
+  padding:8px; font-family:'Courier New',monospace; font-size:12px; line-height:1.6;
 }
 #node-editor:focus { outline:none; border-color:#388bfd; }
 #pa { padding:10px 12px; display:flex; gap:8px; border-top:1px solid #30363d; flex-shrink:0; }
-
-.tag {
-  display:inline-block; padding:2px 8px; border-radius:10px;
-  font-size:10px; margin:2px;
-}
+.tag { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; margin:2px; }
 .tg  { background:#0d419d; border:1px solid #388bfd; }
 .tb  { background:#5a1e1e; border:1px solid #f85149; }
 .ts  { background:#6e40c9; border:1px solid #a371f7; }
-.tsc { background:#1a4f2e; border:1px solid #3fb950; }
 .tc  { background:#3d2f00; border:1px solid #e3b341; }
 </style>
 </head>
 <body>
 
-<!-- ─── Toolbar ─── -->
+<!-- ── Toolbar ── -->
 <div id="toolbar">
-  <h1>⚔ 劇情編輯器</h1>
+  <h1>⚔ 劇情編輯器 v2</h1>
 
-  <button class="btn btn-import" onclick="triggerImport('d')">📂 匯入 Dialogue</button>
-  <input type="file" id="fi-d" accept=".txt,.csv" onchange="onImportDialogue(event)">
+  <button class="btn btn-primary" onclick="triggerImportMaster()">📂 匯入主檔</button>
+  <input type="file" id="fi-master" accept=".txt" onchange="onImportMaster(event)">
 
-  <button class="btn btn-import" onclick="triggerImport('s')">📂 匯入 Selection</button>
-  <input type="file" id="fi-s" accept=".txt,.csv" onchange="onImportSelection(event)">
-
-  <div class="sep"></div>
-
-  <button class="btn btn-layout" onclick="doLayout()">📐 自動排版</button>
-  <button class="btn btn-layout" onclick="cy&&cy.fit()">🔍 全部顯示</button>
-
-  <div class="sep"></div>
-
-  <button class="btn btn-export" onclick="doExportDialogue()">💾 匯出 Dialogue</button>
-  <button class="btn btn-export" onclick="doExportSelection()">💾 匯出 Selection</button>
-
-  <span id="status">請匯入 Dialogue 或 Selection 檔案</span>
-</div>
-
-<!-- ─── Main ─── -->
-<div id="main">
-  <div id="cy-wrap">
-    <div id="cy"></div>
-    <div id="empty-msg">
-      <div class="big">🗺</div>
-      <p>點擊左上角「匯入 Dialogue」或「匯入 Selection」<br>即可將劇情 txt 檔案解析成流程圖</p>
-    </div>
-    <div id="legend">
-      <div class="li"><div class="ld" style="background:#1158c7"></div>Group（對話）</div>
-      <div class="li"><div class="ld" style="background:#8b1a1a"></div>Group（戰鬥）</div>
-      <div class="li"><div class="ld" style="background:#7d5a00"></div>Group（場景跳轉）</div>
-      <div class="li"><div class="ld" style="background:#5a2da6"></div>選項分支 (SE)</div>
-      <div class="li"><div class="ld" style="background:#4a3000"></div>條件分支 (IF)</div>
+  <div class="dropdown" id="dd-ind">
+    <button class="btn btn-secondary" onclick="toggleDD('dd-ind')">📂 個別匯入 ▾</button>
+    <div class="dropdown-menu" id="dd-ind-menu">
+      <div class="dropdown-item" onclick="trigInd('d');closeDD('dd-ind')">匯入 Dialogue（當前章節）</div>
+      <div class="dropdown-item" onclick="trigInd('s');closeDD('dd-ind')">匯入 Selection（當前章節）</div>
+      <div class="dropdown-item item-sep" onclick="trigInd('ed');closeDD('dd-ind')">匯入 Extra_Dialogue.txt</div>
+      <div class="dropdown-item" onclick="trigInd('es');closeDD('dd-ind')">匯入 Extra_Selection.txt</div>
+      <div class="dropdown-item item-sep" onclick="trigInd('gf');closeDD('dd-ind')">匯入 GlobalFlags.txt</div>
+      <div class="dropdown-item" onclick="trigInd('ef');closeDD('dd-ind')">匯入 Extra_Flags.txt</div>
     </div>
   </div>
+  <input type="file" id="fi-d"  accept=".txt" onchange="onInd('d',event)">
+  <input type="file" id="fi-s"  accept=".txt" onchange="onInd('s',event)">
+  <input type="file" id="fi-ed" accept=".txt" onchange="onInd('ed',event)">
+  <input type="file" id="fi-es" accept=".txt" onchange="onInd('es',event)">
+  <input type="file" id="fi-gf" accept=".txt" onchange="onInd('gf',event)">
+  <input type="file" id="fi-ef" accept=".txt" onchange="onInd('ef',event)">
 
+  <div class="sep"></div>
+  <button class="btn btn-secondary" onclick="doLayout()">📐 排版</button>
+  <button class="btn btn-secondary" onclick="cyFit()">🔍 全覽</button>
+  <div class="sep"></div>
+  <button class="btn btn-success" onclick="doSaveMaster()">💾 儲存主檔</button>
+  <button class="btn btn-purple"  onclick="doRelease()">🚀 一鍵釋出</button>
+
+  <span id="status">請匯入主檔，或使用「個別匯入」載入各章節</span>
+</div>
+
+<!-- ── Main ── -->
+<div id="main">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sb-section">主線</div>
+    <div class="sb-item" id="sb-Chapter_0" onclick="setActive('Chapter_0')">📖 第零章<span class="sb-badge" id="badge-Chapter_0"></span></div>
+    <div class="sb-item" id="sb-Chapter_1" onclick="setActive('Chapter_1')">📖 第一章<span class="sb-badge" id="badge-Chapter_1"></span></div>
+    <div class="sb-item" id="sb-Chapter_2" onclick="setActive('Chapter_2')">📖 第二章<span class="sb-badge" id="badge-Chapter_2"></span></div>
+    <div class="sb-item" id="sb-Chapter_3" onclick="setActive('Chapter_3')">📖 第三章<span class="sb-badge" id="badge-Chapter_3"></span></div>
+    <div class="sb-item" id="sb-Chapter_4" onclick="setActive('Chapter_4')">📖 第四章<span class="sb-badge" id="badge-Chapter_4"></span></div>
+    <div class="sb-section">支線</div>
+    <div class="sb-item" id="sb-Extra"       onclick="setActive('Extra')">🗺 支線劇情<span class="sb-badge" id="badge-Extra"></span></div>
+    <div class="sb-item" id="sb-extra_flags" onclick="setActive('extra_flags')">🚩 支線旗標</div>
+    <div class="sb-section">旗標</div>
+    <div class="sb-item" id="sb-flags" onclick="setActive('flags')">🏳 全域旗標</div>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+    <!-- Cytoscape canvas -->
+    <div id="cy-wrap">
+      <div id="cy"></div>
+      <div id="empty-msg">
+        <div class="big">🗺</div>
+        <p>點擊左側章節顯示流程圖<br>或先匯入主檔 / 個別檔案</p>
+      </div>
+      <div id="legend">
+        <div class="li"><div class="ld" style="background:#1158c7"></div>對話 Group</div>
+        <div class="li"><div class="ld" style="background:#8b1a1a"></div>戰鬥 Group</div>
+        <div class="li"><div class="ld" style="background:#7d5a00"></div>場景跳轉</div>
+        <div class="li"><div class="ld" style="background:#5a2da6"></div>選項分支 SE</div>
+        <div class="li"><div class="ld" style="background:#4a3000"></div>條件分支 IF</div>
+      </div>
+      <!-- Floating action buttons -->
+      <div id="fab" class="hidden">
+        <button class="fab-btn fab-se"    onclick="addNewSE()">＋ SE</button>
+        <button class="fab-btn fab-group" onclick="addNewGroup()">＋ Group</button>
+      </div>
+    </div>
+    <!-- Flags editor -->
+    <div id="flags-wrap"></div>
+  </div>
+
+  <!-- Right Panel -->
   <div id="panel">
+    <div id="panel-resize"></div>
     <div id="ph">節點屬性</div>
     <div id="pc"><div class="empty-panel">點選節點<br>以查看並編輯內容</div></div>
     <div id="pa" style="display:none">
-      <button class="btn btn-export" style="flex:1" onclick="saveEdit()">✓ 儲存</button>
-      <button class="btn btn-import" style="flex:1" onclick="deselect()">✕ 取消</button>
+      <button class="btn btn-success"   style="flex:1" onclick="saveEdit()">✓ 儲存</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="deselNode()">✕ 取消</button>
     </div>
   </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
-//  State
-// ═══════════════════════════════════════════════════════════
-let dialogueGroups = {};  // id(int) → { id, rawLines[] }
-let selectionSets  = {};  // id(int) → { id, rawLines[] }
-let dialogueFile   = 'Dialogue.txt';
-let selectionFile  = 'Selection.txt';
-let cy             = null;
-let selectedId     = null;
+// ═══════════════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════════════
+const CH_KEYS = ['Chapter_0','Chapter_1','Chapter_2','Chapter_3','Chapter_4'];
 
-// ═══════════════════════════════════════════════════════════
-//  Parsers
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════
+const S = {
+  chapters: Object.fromEntries(
+    [...CH_KEYS, 'Extra'].map(k => [k, { dialogue:{}, selection:{} }])
+  ),
+  globalFlags: [],
+  extraFlags:  [],
+  active: null,
+  cy: null,
+  sel: null,
+  masterFile: 'TianmoRebirth_Master.txt'
+};
+
+// ═══════════════════════════════════════════════════
+//  Master File — Parser
+// ═══════════════════════════════════════════════════
+function parseMasterFile(text) {
+  [...CH_KEYS, 'Extra'].forEach(k => { S.chapters[k] = { dialogue:{}, selection:{} }; });
+  S.globalFlags = [];
+  S.extraFlags  = [];
+
+  let section='', subsect='', curGroup=null, curSE=null;
+  const ch = () => (section && section !== 'flags') ? S.chapters[section] : null;
+
+  for (const raw of text.split(/\r?\n/)) {
+    const t = raw.trim();
+
+    if (t === '【Flags】')  { section='flags'; subsect=''; curGroup=null; curSE=null; continue; }
+    if (t === '【Extra】')  { section='Extra'; subsect=''; curGroup=null; curSE=null; continue; }
+
+    const chM = t.match(/^【(Chapter_\d+)】$/);
+    if (chM && S.chapters[chM[1]]) { section=chM[1]; subsect=''; curGroup=null; curSE=null; continue; }
+
+    if (t === '【ExtraFlags】') { subsect='extraflags'; curGroup=null; curSE=null; continue; }
+    if (t === '【Dialogue】')   { subsect='dialogue';   curGroup=null; curSE=null; continue; }
+    if (t === '【Selection】')  { subsect='selection';  curGroup=null; curSE=null; continue; }
+    if (t === '【選擇】') continue;
+
+    const gM = t.match(/^【Group_(\d+)】$/);
+    if (gM && subsect==='dialogue' && ch()) {
+      curGroup=+gM[1]; curSE=null;
+      if (!ch().dialogue[curGroup]) ch().dialogue[curGroup]={id:curGroup,rawLines:[]};
+      continue;
+    }
+    const seM = t.match(/^【SE_(\d+)】$/);
+    if (seM && subsect==='selection' && ch()) {
+      curSE=+seM[1]; curGroup=null;
+      if (!ch().selection[curSE]) ch().selection[curSE]={id:curSE,rawLines:[]};
+      continue;
+    }
+
+    if (section==='flags') {
+      if (t && !t.startsWith('//')) { const m=t.match(/^([^:]+):(.*)$/); if(m) S.globalFlags.push({name:m[1].trim(),value:m[2].trim()}); }
+      continue;
+    }
+    if (section==='Extra' && subsect==='extraflags') {
+      if (t && !t.startsWith('//')) { const m=t.match(/^([^:]+):(.*)$/); if(m) S.extraFlags.push({name:m[1].trim(),value:m[2].trim()}); }
+      continue;
+    }
+    if (subsect==='dialogue' && curGroup!==null && ch()) ch().dialogue[curGroup].rawLines.push(raw);
+    else if (subsect==='selection' && curSE!==null && ch()) ch().selection[curSE].rawLines.push(raw);
+  }
+
+  Object.values(S.chapters).forEach(c => {
+    [c.dialogue,c.selection].forEach(dict => {
+      Object.values(dict).forEach(g => {
+        while (g.rawLines.length && !g.rawLines[g.rawLines.length-1].trim()) g.rawLines.pop();
+      });
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  Individual Parsers
+// ═══════════════════════════════════════════════════
 function parseDialogue(text) {
-  const lines = text.split(/\r?\n/);
-  const groups = {};
-  let cur = null;
-  for (const raw of lines) {
-    const m = raw.trim().match(/^【Group_(\d+)】/);
-    if (m) { cur = +m[1]; if (!groups[cur]) groups[cur] = { id:cur, rawLines:[] }; continue; }
-    if (raw.trim().match(/^【GroupSection_\d+】/)) continue;
-    if (cur !== null) groups[cur].rawLines.push(raw);
+  const groups={};  let cur=null;
+  for (const raw of text.split(/\r?\n/)) {
+    const t=raw.trim();
+    if (t.match(/^【GroupSection_\d+】$/)) continue;
+    const m=t.match(/^【Group_(\d+)】$/);
+    if (m) { cur=+m[1]; if(!groups[cur]) groups[cur]={id:cur,rawLines:[]}; continue; }
+    if (cur!==null) groups[cur].rawLines.push(raw);
   }
-  // trim trailing blank lines
-  for (const g of Object.values(groups)) {
-    while (g.rawLines.length && !g.rawLines[g.rawLines.length-1].trim()) g.rawLines.pop();
-  }
+  Object.values(groups).forEach(g => { while(g.rawLines.length&&!g.rawLines[g.rawLines.length-1].trim()) g.rawLines.pop(); });
   return groups;
 }
 
 function parseSelection(text) {
-  const lines = text.split(/\r?\n/);
-  const sets = {};
-  let cur = null;
-  for (const raw of lines) {
-    const t = raw.trim();
-    if (t === '【選擇】') continue;
-    const m = t.match(/^【SE_(\d+)】/);
-    if (m) { cur = +m[1]; if (!sets[cur]) sets[cur] = { id:cur, rawLines:[] }; continue; }
-    if (cur !== null) sets[cur].rawLines.push(raw);
+  const sets={};  let cur=null;
+  for (const raw of text.split(/\r?\n/)) {
+    const t=raw.trim();
+    if (t==='【選擇】') continue;
+    const m=t.match(/^【SE_(\d+)】$/);
+    if (m) { cur=+m[1]; if(!sets[cur]) sets[cur]={id:cur,rawLines:[]}; continue; }
+    if (cur!==null) sets[cur].rawLines.push(raw);
   }
   return sets;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Edge Extraction
-// ═══════════════════════════════════════════════════════════
-function edgesFromGroup(rawLines) {
-  const jumps = new Set();
-  const sels  = new Set();
-  const conds = [];
-  let battleId = null, sceneId = null;
-
-  for (const line of rawLines) {
-    const t = line.trim();
-    // Conditional branch (check BEFORE simple jump scan)
-    const ifm = t.match(/\{IF_([^:]+):G_(\d+):G_(\d+)\}/);
-    if (ifm) { conds.push({ cond:ifm[1], tG:+ifm[2], fG:+ifm[3] }); continue; }
-    // Selection trigger
-    const sm = t.match(/\{S_(\d+)\}/);
-    if (sm) { sels.add(+sm[1]); continue; }
-    // Direct jumps (all occurrences)
-    for (const gm of t.matchAll(/\{G_(\d+)\}/g)) jumps.add(+gm[1]);
-    // Battle / Scene
-    const bm = t.match(/\{BattleSetting_([^}]+)\}/); if (bm) battleId = bm[1];
-    const xm = t.match(/\{GOSCENE_(\d+)\}/);         if (xm) sceneId  = +xm[1];
+function parseFlags(text) {
+  const result=[];
+  for (const raw of text.split(/\r?\n/)) {
+    const t=raw.trim();
+    if (!t||t.startsWith('//')) continue;
+    const m=t.match(/^([^:]+):(.*)$/);
+    if (m) result.push({name:m[1].trim(),value:m[2].trim()});
   }
-  return { jumps:[...jumps], sels:[...sels], conds, battleId, sceneId };
+  return result;
+}
+
+// ═══════════════════════════════════════════════════
+//  Generators
+// ═══════════════════════════════════════════════════
+function generateMasterFile() {
+  let out='';
+  out+='【Flags】\n';
+  S.globalFlags.forEach(f=>{out+=`${f.name}:${f.value}\n`;});
+  out+='\n';
+
+  CH_KEYS.forEach(key=>{
+    const c=S.chapters[key];
+    out+=`【${key}】\n`;
+    const dIds=numSort(c.dialogue);
+    if (dIds.length) {
+      out+='【Dialogue】\n';
+      dIds.forEach(id=>{out+=`【Group_${id}】\n${c.dialogue[id].rawLines.join('\n')}\n\n`;});
+    }
+    const sIds=numSort(c.selection);
+    if (sIds.length) {
+      out+='【Selection】\n';
+      sIds.forEach(id=>{out+=`【SE_${id}】\n${c.selection[id].rawLines.join('\n')}\n`;});
+    }
+    out+='\n';
+  });
+
+  const ex=S.chapters['Extra'];
+  out+='【Extra】\n';
+  if (S.extraFlags.length) { out+='【ExtraFlags】\n'; S.extraFlags.forEach(f=>{out+=`${f.name}:${f.value}\n`;}); out+='\n'; }
+  const exDIds=numSort(ex.dialogue);
+  if (exDIds.length) { out+='【Dialogue】\n'; exDIds.forEach(id=>{out+=`【Group_${id}】\n${ex.dialogue[id].rawLines.join('\n')}\n\n`;}); }
+  const exSIds=numSort(ex.selection);
+  if (exSIds.length) { out+='【Selection】\n'; exSIds.forEach(id=>{out+=`【SE_${id}】\n${ex.selection[id].rawLines.join('\n')}\n`;}); }
+  return out;
+}
+
+function genDialogue(dialogue) {
+  let out='';
+  numSort(dialogue).forEach(id=>{out+=`【Group_${id}】\n${dialogue[id].rawLines.join('\n')}\n\n`;});
+  return out.trimEnd()+'\n';
+}
+function genSelection(selection) {
+  let out='【選擇】\n';
+  numSort(selection).forEach(id=>{out+=`【SE_${id}】\n${selection[id].rawLines.join('\n')}\n`;});
+  return out;
+}
+function genFlags(flags) { return flags.map(f=>`${f.name}:${f.value}`).join('\n')+'\n'; }
+
+// ═══════════════════════════════════════════════════
+//  Graph Analysis Helpers
+// ═══════════════════════════════════════════════════
+function edgesFromGroup(rawLines) {
+  const jumps=new Set(), sels=new Set(), conds=[];
+  let battleId=null, sceneId=null;
+  for (const line of rawLines) {
+    const t=line.trim();
+    const ifm=t.match(/\{IF_([^:]+):G_(\d+):G_(\d+)\}/);
+    if (ifm) { conds.push({cond:ifm[1],tG:+ifm[2],fG:+ifm[3]}); continue; }
+    const sm=t.match(/\{S_(\d+)\}/);
+    if (sm) { sels.add(+sm[1]); continue; }
+    for (const gm of t.matchAll(/\{G_(\d+)\}/g)) jumps.add(+gm[1]);
+    const bm=t.match(/\{BattleSetting_([^}]+)\}/); if(bm) battleId=bm[1];
+    const xm=t.match(/\{GOSCENE_(\d+)\}/);         if(xm) sceneId=+xm[1];
+  }
+  return {jumps:[...jumps],sels:[...sels],conds,battleId,sceneId};
 }
 
 function optionsFromSE(rawLines) {
-  const opts = [];
+  const opts=[];
   for (const line of rawLines) {
-    const t = line.trim();
-    if (!t.startsWith('Buttonset') || t.endsWith('null')) continue;
-    const parts = t.split(':');
-    if (parts.length < 3) continue;
-    const label = parts[1].trim();
-    const gm = parts.slice(2).join(':').match(/\{G_(\d+)\}/);
-    if (gm) opts.push({ label, target:+gm[1] });
+    const t=line.trim();
+    if (!t.startsWith('Buttonset')||t.endsWith('null')) continue;
+    const parts=t.split(':');
+    if (parts.length<3) continue;
+    const gm=parts.slice(2).join(':').match(/\{G_(\d+)\}/);
+    if (gm) opts.push({label:parts[1].trim(),target:+gm[1]});
   }
   return opts;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Preview helpers
-// ═══════════════════════════════════════════════════════════
 function groupPreview(rawLines) {
   for (const l of rawLines) {
-    const t = l.trim();
-    if (t && !t.startsWith('{') && !t.startsWith('【')) return t.substring(0,40);
+    const t=l.trim();
+    if (t&&!t.startsWith('{')&&!t.startsWith('【')&&!t.startsWith('//')) return t.substring(0,38);
   }
-  for (const l of rawLines) {
-    const t = l.trim();
-    if (t.startsWith('{')) return t.substring(0,40);
-  }
+  for (const l of rawLines) { const t=l.trim(); if(t.startsWith('{')) return t.substring(0,38); }
   return '（空）';
 }
-
 function sePreview(rawLines) {
-  return rawLines
-    .map(l => l.trim())
-    .filter(l => l.startsWith('Buttonset') && !l.includes('null'))
-    .map(l => { const p = l.split(':'); return p.length >= 2 ? p[1].trim() : ''; })
-    .filter(Boolean)
-    .slice(0,3).join(' / ')
-    .substring(0,45) || '（空）';
+  return rawLines.map(l=>l.trim())
+    .filter(l=>l.startsWith('Buttonset')&&!l.includes('null'))
+    .map(l=>{ const p=l.split(':'); return p.length>=2?p[1].trim():''; })
+    .filter(Boolean).slice(0,3).join(' / ').substring(0,44)||'（空）';
+}
+function calcNtype(rawLines) {
+  const info=edgesFromGroup(rawLines);
+  if (info.battleId) return 'battle';
+  if (info.sceneId!==null) return 'scene';
+  return 'group';
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Build Cytoscape Elements
-// ═══════════════════════════════════════════════════════════
-function buildElements() {
-  const els = [];
-  let ei = 0; // edge counter for unique ids
-  const edge = (src, tgt, lbl='') => {
-    els.push({ group:'edges', data:{ id:`e${ei++}`, source:src, target:tgt, label:lbl } });
-  };
-
-  // ── Group nodes ──
-  for (const [k, g] of Object.entries(dialogueGroups)) {
-    const id = +k;
-    const info = edgesFromGroup(g.rawLines);
-    const prev = groupPreview(g.rawLines);
-
-    let ntype = 'group';
-    if (info.battleId) ntype = 'battle';
-    else if (info.sceneId !== null) ntype = 'scene';
-
-    els.push({ group:'nodes', data:{
-      id: `Group_${id}`,
-      label: `Group ${id}\n${prev}`,
-      ntype
-    }});
-
-    // Direct jumps
-    for (const t of info.jumps) {
-      if (dialogueGroups[t] !== undefined) edge(`Group_${id}`, `Group_${t}`);
-    }
-    // Selection triggers
-    for (const s of info.sels) {
-      edge(`Group_${id}`, `SE_${s}`, '選項');
-    }
-    // Conditionals → inline condition node
-    info.conds.forEach((c, ci) => {
-      const cnid = `Cond_${id}_${ci}`;
-      els.push({ group:'nodes', data:{ id:cnid, label:`IF\n${c.cond}`, ntype:'cond' }});
-      edge(`Group_${id}`, cnid);
-      if (dialogueGroups[c.tG]) edge(cnid, `Group_${c.tG}`, 'TRUE');
-      if (dialogueGroups[c.fG]) edge(cnid, `Group_${c.fG}`, 'FALSE');
-    });
-  }
-
-  // ── SE nodes ──
-  for (const [k, se] of Object.entries(selectionSets)) {
-    const id = +k;
-    const prev = sePreview(se.rawLines);
-    els.push({ group:'nodes', data:{
-      id: `SE_${id}`,
-      label: `SE ${id}\n${prev}`,
-      ntype: 'se'
-    }});
-
-    for (const opt of optionsFromSE(se.rawLines)) {
-      if (dialogueGroups[opt.target] !== undefined)
-        edge(`SE_${id}`, `Group_${opt.target}`, opt.label.substring(0,12));
-    }
-  }
-
-  return els;
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Cytoscape Init
-// ═══════════════════════════════════════════════════════════
-const STYLE = [
+// ═══════════════════════════════════════════════════
+//  Cytoscape
+// ═══════════════════════════════════════════════════
+const CY_STYLE = [
   { selector:'node[ntype="group"]', style:{
     'background-color':'#0d2d6e','border-color':'#1f6feb','border-width':2,
     'shape':'roundrectangle','width':170,'height':56,
@@ -329,9 +481,9 @@ const STYLE = [
   }},
   { selector:'node[ntype="se"]', style:{
     'background-color':'#2d1b69','border-color':'#a371f7','border-width':2,
-    'shape':'diamond','width':150,'height':72,
+    'shape':'diamond','width':155,'height':74,
     'label':'data(label)','color':'#c9d1d9','font-size':10,
-    'text-wrap':'wrap','text-max-width':130,'text-valign':'center','text-halign':'center'
+    'text-wrap':'wrap','text-max-width':132,'text-valign':'center','text-halign':'center'
   }},
   { selector:'node[ntype="cond"]', style:{
     'background-color':'#3d2f00','border-color':'#d4a015','border-width':2,
@@ -339,209 +491,464 @@ const STYLE = [
     'label':'data(label)','color':'#c9d1d9','font-size':10,
     'text-wrap':'wrap','text-max-width':110,'text-valign':'center','text-halign':'center'
   }},
-  { selector:'node:selected', style:{ 'border-color':'#f0883e','border-width':3 }},
+  { selector:'node:selected', style:{'border-color':'#f0883e','border-width':3}},
   { selector:'edge', style:{
     'width':1.5,'line-color':'#30363d','target-arrow-color':'#30363d',
     'target-arrow-shape':'triangle','curve-style':'bezier',
     'label':'data(label)','font-size':9,'color':'#8b949e',
     'text-background-color':'#0d1117','text-background-opacity':0.85,'text-background-padding':2
   }},
-  { selector:'edge[label="TRUE"]',  style:{ 'line-color':'#3fb950','target-arrow-color':'#3fb950' }},
-  { selector:'edge[label="FALSE"]', style:{ 'line-color':'#f85149','target-arrow-color':'#f85149' }},
-  { selector:'edge[label="選項"]',  style:{ 'line-color':'#a371f7','target-arrow-color':'#a371f7','line-style':'dashed' }},
+  { selector:'edge[label="TRUE"]',  style:{'line-color':'#3fb950','target-arrow-color':'#3fb950'}},
+  { selector:'edge[label="FALSE"]', style:{'line-color':'#f85149','target-arrow-color':'#f85149'}},
+  { selector:'edge[label="選項"]',  style:{'line-color':'#a371f7','target-arrow-color':'#a371f7','line-style':'dashed'}},
 ];
 
+function buildElements(key) {
+  const c=S.chapters[key]; if(!c) return [];
+  const {dialogue,selection}=c;
+  const els=[]; let ei=0;
+  const addEdge=(src,tgt,lbl='')=>{
+    if (!els.some(e=>e.group==='nodes'&&e.data.id===tgt)) return; // target node must exist
+    els.push({group:'edges',data:{id:`e${ei++}`,source:src,target:tgt,label:lbl}});
+  };
+
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k, info=edgesFromGroup(g.rawLines);
+    const ntype=calcNtype(g.rawLines);
+    els.push({group:'nodes',data:{id:`Group_${id}`,label:`Group ${id}\n${groupPreview(g.rawLines)}`,ntype}});
+    for (const t of info.jumps) if(dialogue[t]) addEdge(`Group_${id}`,`Group_${t}`);
+    for (const s of info.sels) addEdge(`Group_${id}`,`SE_${s}`,'選項');
+    info.conds.forEach((c,ci)=>{
+      const cn=`Cond_${id}_${ci}`;
+      els.push({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'}});
+      addEdge(`Group_${id}`,cn);
+    });
+  }
+  // Add SE nodes first so addEdge checks pass
+  for (const [k,se] of Object.entries(selection)) {
+    const id=+k;
+    els.push({group:'nodes',data:{id:`SE_${id}`,label:`SE ${id}\n${sePreview(se.rawLines)}`,ntype:'se'}});
+  }
+  // Cond→Group edges (added after all nodes exist)
+  const condEdges=[];
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k, info=edgesFromGroup(g.rawLines);
+    info.conds.forEach((c,ci)=>{
+      const cn=`Cond_${id}_${ci}`;
+      if(dialogue[c.tG]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:cn,target:`Group_${c.tG}`,label:'TRUE'}});
+      if(dialogue[c.fG]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:cn,target:`Group_${c.fG}`,label:'FALSE'}});
+    });
+  }
+  // SE→Group edges
+  for (const [k,se] of Object.entries(selection)) {
+    const id=+k;
+    for (const opt of optionsFromSE(se.rawLines))
+      if(dialogue[opt.target]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:`SE_${id}`,target:`Group_${opt.target}`,label:opt.label.substring(0,12)}});
+  }
+  return [...els,...condEdges];
+}
+
 function initCy(els) {
-  if (cy) cy.destroy();
-  document.getElementById('empty-msg').style.display = 'none';
-
-  cy = cytoscape({
-    container: document.getElementById('cy'),
-    elements: els,
-    style: STYLE,
-    layout: { name:'cose', animate:false, nodeRepulsion:8000, padding:50, idealEdgeLength:120 }
+  if (S.cy){S.cy.destroy();S.cy=null;}
+  document.getElementById('empty-msg').style.display=els.length?'none':'flex';
+  if (!els.length) return;
+  S.cy=cytoscape({
+    container:document.getElementById('cy'),
+    elements:els,
+    style:CY_STYLE,
+    layout:{name:'cose',animate:false,nodeRepulsion:8000,padding:50,idealEdgeLength:120}
   });
-
-  cy.on('tap', 'node', e => { selectedId = e.target.id(); renderPanel(); });
-  cy.on('tap',        e => { if (e.target === cy) deselect(); });
+  S.cy.on('tap','node',e=>{S.sel=e.target.id();renderPanel();});
+  S.cy.on('tap',       e=>{if(e.target===S.cy){S.sel=null;renderPanel();}});
 }
 
 function doLayout() {
-  if (!cy) return;
-  cy.layout({ name:'cose', animate:true, nodeRepulsion:8000, padding:50, idealEdgeLength:120 }).run();
+  if(!S.cy)return;
+  S.cy.layout({name:'cose',animate:true,nodeRepulsion:8000,padding:50,idealEdgeLength:120}).run();
 }
+function cyFit(){if(S.cy)S.cy.fit();}
 
 function refreshGraph() {
-  const total = Object.keys(dialogueGroups).length + Object.keys(selectionSets).length;
-  if (!total) return;
-  initCy(buildElements());
+  if(!S.active||S.active==='flags'||S.active==='extra_flags') return;
+  initCy(buildElements(S.active));
+  updateBadges();
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Panel
-// ═══════════════════════════════════════════════════════════
+// ── In-place graph update after node edit ──────────────────
+// (called by saveEdit – does NOT re-run layout)
+function updateGroupInCy(gId, lines, dialogue) {
+  if(!S.cy) return;
+  const node=S.cy.getElementById(`Group_${gId}`);
+  if(!node.length) return;
+
+  const info=edgesFromGroup(lines);
+  const ntype=calcNtype(lines);
+  node.data('label',`Group ${gId}\n${groupPreview(lines)}`);
+  node.data('ntype',ntype);
+
+  // Remove outgoing edges + old cond children
+  S.cy.edges(`[source="Group_${gId}"]`).remove();
+  S.cy.nodes().filter(n=>n.id().startsWith(`Cond_${gId}_`)).remove();
+
+  const uid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const addE=(src,tgt,lbl='')=>{
+    if(!S.cy.getElementById(tgt).length) return;
+    S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl}});
+  };
+
+  for (const t of info.jumps) if(dialogue[t]) addE(`Group_${gId}`,`Group_${t}`);
+  for (const s of info.sels) addE(`Group_${gId}`,`SE_${s}`,'選項');
+  info.conds.forEach((c,ci)=>{
+    const cn=`Cond_${gId}_${ci}`;
+    const nodePos={x:node.position('x')+100,y:node.position('y')+80};
+    S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:nodePos});
+    addE(`Group_${gId}`,cn);
+    if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,'TRUE');
+    if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'FALSE');
+  });
+}
+
+function updateSEInCy(sId, lines, dialogue) {
+  if(!S.cy) return;
+  const node=S.cy.getElementById(`SE_${sId}`);
+  if(!node.length) return;
+  node.data('label',`SE ${sId}\n${sePreview(lines)}`);
+  S.cy.edges(`[source="SE_${sId}"]`).remove();
+  const uid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  for (const opt of optionsFromSE(lines)) {
+    if(S.cy.getElementById(`Group_${opt.target}`).length)
+      S.cy.add({group:'edges',data:{id:uid(),source:`SE_${sId}`,target:`Group_${opt.target}`,label:opt.label.substring(0,12)}});
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  Right Panel — Node Editor
+// ═══════════════════════════════════════════════════
 function renderPanel() {
-  const pc = document.getElementById('pc');
-  const pa = document.getElementById('pa');
-  if (!selectedId) {
-    pc.innerHTML = '<div class="empty-panel">點選節點<br>以查看並編輯內容</div>';
-    pa.style.display = 'none';
-    return;
+  const pc=document.getElementById('pc'), pa=document.getElementById('pa');
+  const id=S.sel;
+  if(!id||!S.active||S.active==='flags'||S.active==='extra_flags'){
+    pc.innerHTML='<div class="empty-panel">點選節點<br>以查看並編輯內容</div>';
+    pa.style.display='none'; return;
   }
+  const c=S.chapters[S.active];
+  let html='';
 
-  let html = '';
+  if (id.startsWith('Group_')) {
+    const gId=+id.replace('Group_','');
+    const g=c.dialogue[gId]; if(!g) return;
+    const info=edgesFromGroup(g.rawLines);
+    const ntype=info.battleId?'⚔ 戰鬥 Group':info.sceneId!==null?'🚪 場景跳轉':'💬 對話 Group';
+    const tc=info.battleId?'tb':'tg';
+    html+=`<div class="fl">類型</div><div class="fv"><span class="tag ${tc}">${ntype}</span></div>`;
+    html+=`<div class="fl">Group ID</div><div class="fv">${gId}</div>`;
+    if(info.battleId) html+=`<div class="fl">戰鬥 ID</div><div class="fv">${info.battleId}</div>`;
+    const links=[...info.jumps.map(j=>`Group_${j}`),...info.sels.map(s=>`SE_${s}`),...info.conds.flatMap(c=>[`Group_${c.tG}`,`Group_${c.fG}`])];
+    if(links.length) html+=`<div class="fl">連結</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
+    html+=`<div class="fl">內容（直接編輯，儲存後圖形更新但不移動節點）</div>`;
+    html+=`<textarea id="node-editor">${esc(g.rawLines.join('\n'))}</textarea>`;
 
-  if (selectedId.startsWith('Group_')) {
-    const id = +selectedId.replace('Group_','');
-    const g  = dialogueGroups[id]; if (!g) return;
-    const info = edgesFromGroup(g.rawLines);
-    const ntype = info.battleId ? '⚔ 戰鬥 Group' : info.sceneId !== null ? '🚪 場景跳轉 Group' : '💬 對話 Group';
-    const tc = info.battleId ? 'tb' : 'tg';
-
-    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag ${tc}">${ntype}</span></div>`;
-    html += `<div class="fl">Group ID</div><div class="fv">${id}</div>`;
-    if (info.battleId) html += `<div class="fl">戰鬥 ID</div><div class="fv">${info.battleId}</div>`;
-
-    const links = [
-      ...info.jumps.map(j=>`Group_${j}`),
-      ...info.sels.map(s=>`SE_${s}`),
-      ...info.conds.flatMap(c=>[`Group_${c.tG}`,`Group_${c.fG}`])
-    ];
-    if (links.length) html += `<div class="fl">連結到</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
-
-    html += `<div class="fl">內容（直接編輯，儲存後圖形更新）</div>`;
-    html += `<textarea id="node-editor">${escHtml(g.rawLines.join('\n'))}</textarea>`;
-
-  } else if (selectedId.startsWith('SE_')) {
-    const id = +selectedId.replace('SE_','');
-    const se = selectionSets[id]; if (!se) return;
-    const opts = optionsFromSE(se.rawLines);
-
-    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
-    html += `<div class="fl">SE ID</div><div class="fv">${id}</div>`;
-    if (opts.length) {
-      html += `<div class="fl">選項（${opts.length} 個）</div>`;
-      opts.forEach(o => { html += `<div class="fv" style="font-size:11px;padding:2px 0">▸ ${escHtml(o.label)} → Group_${o.target}</div>`; });
+  } else if (id.startsWith('SE_')) {
+    const sId=+id.replace('SE_','');
+    const se=c.selection[sId]; if(!se) return;
+    const opts=optionsFromSE(se.rawLines);
+    html+=`<div class="fl">類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
+    html+=`<div class="fl">SE ID</div><div class="fv">${sId}</div>`;
+    if(opts.length){
+      html+=`<div class="fl">選項 (${opts.length})</div>`;
+      opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)} → Group_${o.target}</div>`;});
     }
-    html += `<div class="fl">內容（直接編輯）</div>`;
-    html += `<textarea id="node-editor">${escHtml(se.rawLines.join('\n'))}</textarea>`;
+    html+=`<div class="fl">內容（直接編輯）</div>`;
+    html+=`<textarea id="node-editor">${esc(se.rawLines.join('\n'))}</textarea>`;
 
-  } else if (selectedId.startsWith('Cond_')) {
-    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
-    html += `<div class="fl" style="margin-top:16px">說明</div>`;
-    html += `<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8">此節點由對應 Group 的<br><code>{IF_condition:G_true:G_false}</code> 產生<br>請編輯該 Group 的內容來修改</div>`;
-    pc.innerHTML = html;
-    pa.style.display = 'none';
-    return;
+  } else if (id.startsWith('Cond_')) {
+    html+=`<div class="fl">類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
+    html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由所屬 Group 的<br><code>{IF_flag:G_true:G_false}</code><br>指令產生，請編輯對應 Group</div>`;
+    pc.innerHTML=html; pa.style.display='none'; return;
   }
 
-  pc.innerHTML = html;
-  pa.style.display = 'flex';
+  pc.innerHTML=html;
+  pa.style.display='flex';
 }
 
 function saveEdit() {
-  const ed = document.getElementById('node-editor');
-  if (!ed || !selectedId) return;
-  const lines = ed.value.split('\n');
+  const ed=document.getElementById('node-editor');
+  if(!ed||!S.sel||!S.active) return;
+  const c=S.chapters[S.active];
+  const lines=ed.value.split('\n');
 
-  if (selectedId.startsWith('Group_')) {
-    dialogueGroups[+selectedId.replace('Group_','')].rawLines = lines;
-  } else if (selectedId.startsWith('SE_')) {
-    selectionSets[+selectedId.replace('SE_','')].rawLines = lines;
+  if (S.sel.startsWith('Group_')) {
+    const gId=+S.sel.replace('Group_','');
+    if(!c.dialogue[gId]) return;
+    c.dialogue[gId].rawLines=lines;
+    updateGroupInCy(gId, lines, c.dialogue); // in-place, no re-layout
+  } else if (S.sel.startsWith('SE_')) {
+    const sId=+S.sel.replace('SE_','');
+    if(!c.selection[sId]) return;
+    c.selection[sId].rawLines=lines;
+    updateSEInCy(sId, lines, c.dialogue);    // in-place, no re-layout
   }
 
-  const savedId = selectedId;
-  refreshGraph();
-  // Re-select same node after rebuild
-  setTimeout(() => {
-    selectedId = savedId;
-    if (cy) { cy.getElementById(savedId).select(); renderPanel(); }
-  }, 80);
-  setStatus();
+  renderPanel();  // refresh info in panel
+  setStatus('已儲存');
 }
 
-function deselect() {
-  selectedId = null;
-  renderPanel();
-  if (cy) cy.elements().unselect();
+function deselNode(){S.sel=null;renderPanel();if(S.cy)S.cy.elements().unselect();}
+
+// ═══════════════════════════════════════════════════
+//  Add New Nodes (FAB)
+// ═══════════════════════════════════════════════════
+function nextGroupId() {
+  const ids=Object.keys(S.chapters[S.active].dialogue).map(Number);
+  return ids.length ? Math.max(...ids)+1 : 0;
+}
+function nextSEId() {
+  const ids=Object.keys(S.chapters[S.active].selection).map(Number);
+  return ids.length ? Math.max(...ids)+1 : 0;
+}
+function centerPos() {
+  if(!S.cy) return {x:200,y:200};
+  const cont=S.cy.container();
+  const pan=S.cy.pan(), zoom=S.cy.zoom();
+  return {
+    x:(cont.offsetWidth/2  - pan.x)/zoom,
+    y:(cont.offsetHeight/2 - pan.y)/zoom
+  };
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Import
-// ═══════════════════════════════════════════════════════════
-function triggerImport(t) {
-  document.getElementById(t==='d' ? 'fi-d' : 'fi-s').click();
+function addNewGroup() {
+  if(!S.active||S.active==='flags'||S.active==='extra_flags'){alert('請先選擇一個章節');return;}
+  const id=nextGroupId();
+  const template=['你：（...）','{G_???}'];
+  S.chapters[S.active].dialogue[id]={id,rawLines:template};
+
+  if(!S.cy) {
+    // First node in chapter — initialize cytoscape
+    refreshGraph();
+    setTimeout(()=>{if(S.cy){S.cy.getElementById(`Group_${id}`).select();S.sel=`Group_${id}`;renderPanel();}},80);
+  } else {
+    const pos=centerPos();
+    S.cy.add({group:'nodes',data:{id:`Group_${id}`,label:`Group ${id}\n${groupPreview(template)}`,ntype:'group'},position:pos});
+    S.cy.getElementById(`Group_${id}`).select();
+    S.sel=`Group_${id}`;
+    renderPanel();
+  }
+  updateBadges();
+  setStatus(`已新增 Group_${id}（${S.active}）`);
 }
 
-function onImportDialogue(e) {
-  const f = e.target.files[0]; if (!f) return;
-  dialogueFile = f.name;
-  const r = new FileReader();
-  r.onload = ev => { dialogueGroups = parseDialogue(ev.target.result); setStatus(); refreshGraph(); };
-  r.readAsText(f, 'UTF-8');
-  e.target.value = '';
+function addNewSE() {
+  if(!S.active||S.active==='flags'||S.active==='extra_flags'){alert('請先選擇一個章節');return;}
+  const id=nextSEId();
+  const template=['Buttonset_0:選項一:{G_???}','Buttonset_1:選項二:{G_???}'];
+  S.chapters[S.active].selection[id]={id,rawLines:template};
+
+  if(!S.cy) {
+    refreshGraph();
+    setTimeout(()=>{if(S.cy){S.cy.getElementById(`SE_${id}`).select();S.sel=`SE_${id}`;renderPanel();}},80);
+  } else {
+    const pos=centerPos();
+    S.cy.add({group:'nodes',data:{id:`SE_${id}`,label:`SE ${id}\n${sePreview(template)}`,ntype:'se'},position:pos});
+    S.cy.getElementById(`SE_${id}`).select();
+    S.sel=`SE_${id}`;
+    renderPanel();
+  }
+  updateBadges();
+  setStatus(`已新增 SE_${id}（${S.active}）`);
 }
 
-function onImportSelection(e) {
-  const f = e.target.files[0]; if (!f) return;
-  selectionFile = f.name;
-  const r = new FileReader();
-  r.onload = ev => { selectionSets = parseSelection(ev.target.result); setStatus(); refreshGraph(); };
-  r.readAsText(f, 'UTF-8');
-  e.target.value = '';
+// ═══════════════════════════════════════════════════
+//  Sidebar Navigation
+// ═══════════════════════════════════════════════════
+function setActive(key) {
+  S.active=key; S.sel=null;
+  document.querySelectorAll('.sb-item').forEach(el=>el.classList.remove('active'));
+  const sbEl=document.getElementById(`sb-${key}`);
+  if(sbEl) sbEl.classList.add('active');
+
+  const cyWrap=document.getElementById('cy-wrap');
+  const fwrap=document.getElementById('flags-wrap');
+  const fab=document.getElementById('fab');
+  const isFlags=(key==='flags'||key==='extra_flags');
+
+  if(isFlags){
+    cyWrap.style.display='none';
+    fwrap.classList.add('visible');
+    fab.classList.add('hidden');
+    if(S.cy){S.cy.destroy();S.cy=null;}
+    renderFlagsPanel(key);
+    renderPanel();
+  } else {
+    cyWrap.style.display='';
+    fwrap.classList.remove('visible');
+    fab.classList.remove('hidden');
+    refreshGraph();
+    renderPanel();
+  }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+//  Flags Editor
+// ═══════════════════════════════════════════════════
+function renderFlagsPanel(key) {
+  const wrap=document.getElementById('flags-wrap');
+  const flags=key==='flags'?S.globalFlags:S.extraFlags;
+  const label=key==='flags'?'全域旗標  (GlobalFlags.txt)':'支線旗標  (Extra_Flags.txt)';
+  let html=`<div class="flags-title">🏳 ${label}</div>`;
+  html+=`<table class="flags-table"><thead><tr><th>旗標名稱</th><th>初始值</th><th></th></tr></thead><tbody>`;
+  flags.forEach((f,i)=>{
+    html+=`<tr>
+      <td><input class="flag-name" value="${esc(f.name)}"  onchange="updateFlag('${key}',${i},'name',this.value)"></td>
+      <td><input class="flag-val"  value="${esc(f.value)}" onchange="updateFlag('${key}',${i},'value',this.value)"></td>
+      <td><button class="flag-del" onclick="deleteFlag('${key}',${i})">✕</button></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  html+=`<div class="flags-add">
+    <input class="fadd-input" id="fn-name" placeholder="旗標名稱" style="width:220px">
+    <input class="fadd-input" id="fn-val"  placeholder="初始值"   style="width:80px">
+    <button class="btn btn-secondary" onclick="addFlag('${key}')">＋ 新增</button>
+  </div>`;
+  wrap.innerHTML=html;
+}
+
+function updateFlag(key,idx,field,val){(key==='flags'?S.globalFlags:S.extraFlags)[idx][field]=val;}
+function deleteFlag(key,idx){(key==='flags'?S.globalFlags:S.extraFlags).splice(idx,1);renderFlagsPanel(key);}
+function addFlag(key){
+  const name=document.getElementById('fn-name').value.trim();
+  const val=document.getElementById('fn-val').value.trim()||'0';
+  if(!name){document.getElementById('fn-name').focus();return;}
+  (key==='flags'?S.globalFlags:S.extraFlags).push({name,value:val});
+  renderFlagsPanel(key);
+}
+
+// ═══════════════════════════════════════════════════
+//  Import — Master File
+// ═══════════════════════════════════════════════════
+function triggerImportMaster(){document.getElementById('fi-master').click();}
+function onImportMaster(e){
+  const f=e.target.files[0];if(!f)return;
+  S.masterFile=f.name;
+  const r=new FileReader();
+  r.onload=ev=>{
+    parseMasterFile(ev.target.result);
+    updateBadges();
+    setStatus(`已載入主檔：${f.name}`);
+    const firstKey=[...CH_KEYS,'Extra'].find(k=>{
+      const c=S.chapters[k];
+      return Object.keys(c.dialogue).length||Object.keys(c.selection).length;
+    });
+    if(firstKey) setActive(firstKey);
+    else if(S.globalFlags.length) setActive('flags');
+  };
+  r.readAsText(f,'UTF-8'); e.target.value='';
+}
+
+// ═══════════════════════════════════════════════════
+//  Import — Individual Files
+// ═══════════════════════════════════════════════════
+const IND_INPUT={d:'fi-d',s:'fi-s',ed:'fi-ed',es:'fi-es',gf:'fi-gf',ef:'fi-ef'};
+function trigInd(t){document.getElementById(IND_INPUT[t]).click();}
+function onInd(type,e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const txt=ev.target.result;
+    const tKey=S.active&&S.active!=='flags'&&S.active!=='extra_flags'?S.active:'Chapter_0';
+    if(type==='d'){S.chapters[tKey].dialogue=parseDialogue(txt);setStatus(`Dialogue → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
+    else if(type==='s'){S.chapters[tKey].selection=parseSelection(txt);setStatus(`Selection → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
+    else if(type==='ed'){S.chapters['Extra'].dialogue=parseDialogue(txt);setStatus('Extra_Dialogue 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
+    else if(type==='es'){S.chapters['Extra'].selection=parseSelection(txt);setStatus('Extra_Selection 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
+    else if(type==='gf'){S.globalFlags=parseFlags(txt);setStatus('GlobalFlags 已載入');if(S.active==='flags')renderFlagsPanel('flags');}
+    else if(type==='ef'){S.extraFlags=parseFlags(txt);setStatus('Extra_Flags 已載入');if(S.active==='extra_flags')renderFlagsPanel('extra_flags');}
+  };
+  r.readAsText(f,'UTF-8'); e.target.value='';
+}
+
+// ═══════════════════════════════════════════════════
 //  Export
-// ═══════════════════════════════════════════════════════════
-function doExportDialogue() {
-  if (!Object.keys(dialogueGroups).length) { alert('尚未載入 Dialogue 資料！'); return; }
-  const ids = Object.keys(dialogueGroups).map(Number).sort((a,b)=>a-b);
-  let out = '';
-  for (const id of ids) {
-    const g = dialogueGroups[id];
-    out += `【Group_${id}】\n`;
-    out += g.rawLines.join('\n');
-    out += '\n\n';
-  }
-  download(out.trimEnd() + '\n', dialogueFile);
+// ═══════════════════════════════════════════════════
+function doSaveMaster(){download(generateMasterFile(),S.masterFile);setStatus('主檔已下載：'+S.masterFile);}
+
+async function doRelease(){
+  if(typeof JSZip==='undefined'){alert('JSZip 尚未載入，請確認網路連線後重試');return;}
+  const zip=new JSZip();
+  if(S.globalFlags.length) zip.file('Flags/GlobalFlags.txt',genFlags(S.globalFlags));
+  CH_KEYS.forEach(key=>{
+    const c=S.chapters[key];
+    if(Object.keys(c.dialogue).length)  zip.file(`MainStory/${key}/${key}_Dialogue.txt`,genDialogue(c.dialogue));
+    if(Object.keys(c.selection).length) zip.file(`MainStory/${key}/${key}_Selection.txt`,genSelection(c.selection));
+  });
+  const ex=S.chapters['Extra'];
+  if(Object.keys(ex.dialogue).length)  zip.file('Extra/Extra_Dialogue.txt',genDialogue(ex.dialogue));
+  if(Object.keys(ex.selection).length) zip.file('Extra/Extra_Selection.txt',genSelection(ex.selection));
+  if(S.extraFlags.length)              zip.file('Extra/Extra_Flags.txt',genFlags(S.extraFlags));
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
+  setStatus('release.zip 已下載');
 }
 
-function doExportSelection() {
-  if (!Object.keys(selectionSets).length) { alert('尚未載入 Selection 資料！'); return; }
-  const ids = Object.keys(selectionSets).map(Number).sort((a,b)=>a-b);
-  let out = '【選擇】\n';
-  for (const id of ids) {
-    const se = selectionSets[id];
-    out += `【SE_${id}】\n`;
-    out += se.rawLines.join('\n');
-    out += '\n';
-  }
-  download(out, selectionFile);
+// ═══════════════════════════════════════════════════
+//  Panel Resize (drag left edge)
+// ═══════════════════════════════════════════════════
+function initPanelResize(){
+  const handle=document.getElementById('panel-resize');
+  const panel=document.getElementById('panel');
+  let dragging=false, startX=0, startW=0;
+
+  handle.addEventListener('mousedown',e=>{
+    dragging=true; startX=e.clientX; startW=panel.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const diff=startX-e.clientX;   // drag left → wider
+    const newW=Math.max(200,Math.min(680,startW+diff));
+    panel.style.width=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+  });
 }
 
-function download(content, filename) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([content], { type:'text/plain;charset=utf-8' }));
-  a.download = filename;
-  a.click();
-}
-
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
 //  Helpers
-// ═══════════════════════════════════════════════════════════
-function setStatus() {
-  const gc = Object.keys(dialogueGroups).length;
-  const sc = Object.keys(selectionSets).length;
-  const parts = [];
-  if (gc) parts.push(`${gc} Groups`);
-  if (sc) parts.push(`${sc} SE`);
-  document.getElementById('status').textContent = parts.length ? parts.join('  •  ') : '請匯入 Dialogue 或 Selection 檔案';
+// ═══════════════════════════════════════════════════
+function numSort(dict){return Object.keys(dict).map(Number).sort((a,b)=>a-b);}
+function download(content,filename){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));
+  a.download=filename; a.click();
 }
+function updateBadges(){
+  [...CH_KEYS,'Extra'].forEach(k=>{
+    const el=document.getElementById(`badge-${k}`);if(!el)return;
+    const cnt=Object.keys(S.chapters[k].dialogue).length;
+    el.textContent=cnt?` ${cnt}`:'';
+  });
+}
+function setStatus(msg){document.getElementById('status').textContent=msg||'就緒';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+// Dropdown
+function toggleDD(id){document.getElementById(id+'-menu').classList.toggle('open');}
+function closeDD(id){document.getElementById(id+'-menu').classList.remove('open');}
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.dropdown-menu.open').forEach(m=>{
+    if(!m.closest('.dropdown').contains(e.target)) m.classList.remove('open');
+  });
+});
+
+// Init
+initPanelResize();
 </script>
 </body>
 </html>
