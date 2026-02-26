@@ -1,1 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天魔重生 劇情編輯器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',sans-serif; background:#0d1117; color:#c9d1d9; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
+/* ─── Toolbar ─── */
+#toolbar {
+  background:#161b22; border-bottom:1px solid #30363d;
+  padding:8px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0;
+}
+#toolbar h1 { font-size:15px; color:#f85149; margin-right:6px; white-space:nowrap; }
+.sep { width:1px; height:24px; background:#30363d; margin:0 4px; }
+.btn {
+  padding:5px 12px; border:none; border-radius:5px; cursor:pointer;
+  font-size:12px; font-weight:500; transition:filter .15s; white-space:nowrap;
+}
+.btn:hover { filter:brightness(1.15); }
+.btn-import  { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
+.btn-export  { background:#1f6feb; color:#fff; }
+.btn-layout  { background:#21262d; color:#c9d1d9; border:1px solid #30363d; }
+.btn-danger  { background:#da3633; color:#fff; }
+#status { margin-left:auto; font-size:11px; color:#8b949e; white-space:nowrap; }
+input[type=file] { display:none; }
+
+/* ─── Main Layout ─── */
+#main { display:flex; flex:1; overflow:hidden; }
+
+/* ─── Canvas ─── */
+#cy-wrap { flex:1; position:relative; background:#0d1117; }
+#cy { width:100%; height:100%; }
+
+#empty-msg {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:12px; pointer-events:none;
+}
+#empty-msg .big { font-size:48px; }
+#empty-msg p { color:#484f58; font-size:14px; text-align:center; line-height:1.8; }
+
+/* ─── Legend ─── */
+#legend {
+  position:absolute; bottom:12px; left:12px; background:rgba(22,27,34,.92);
+  border:1px solid #30363d; border-radius:6px; padding:8px 12px; font-size:11px;
+}
+.li { display:flex; align-items:center; gap:7px; margin:3px 0; }
+.ld { width:11px; height:11px; border-radius:2px; }
+
+/* ─── Right Panel ─── */
+#panel {
+  width:300px; flex-shrink:0; background:#161b22; border-left:1px solid #30363d;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#ph { padding:10px 14px; background:#21262d; font-size:12px; font-weight:600; border-bottom:1px solid #30363d; }
+#pc { flex:1; padding:12px; overflow-y:auto; }
+.empty-panel { color:#484f58; font-size:12px; text-align:center; padding-top:40px; line-height:2; }
+
+.fl  { font-size:10px; color:#8b949e; margin-top:10px; margin-bottom:3px; }
+.fv  { font-size:12px; }
+#node-editor {
+  width:100%; min-height:180px; max-height:320px; resize:vertical;
+  background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;
+  padding:8px; font-family:'Courier New',monospace; font-size:11px; line-height:1.5;
+}
+#node-editor:focus { outline:none; border-color:#388bfd; }
+#pa { padding:10px 12px; display:flex; gap:8px; border-top:1px solid #30363d; flex-shrink:0; }
+
+.tag {
+  display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:10px; margin:2px;
+}
+.tg  { background:#0d419d; border:1px solid #388bfd; }
+.tb  { background:#5a1e1e; border:1px solid #f85149; }
+.ts  { background:#6e40c9; border:1px solid #a371f7; }
+.tsc { background:#1a4f2e; border:1px solid #3fb950; }
+.tc  { background:#3d2f00; border:1px solid #e3b341; }
+</style>
+</head>
+<body>
+
+<!-- ─── Toolbar ─── -->
+<div id="toolbar">
+  <h1>⚔ 劇情編輯器</h1>
+
+  <button class="btn btn-import" onclick="triggerImport('d')">📂 匯入 Dialogue</button>
+  <input type="file" id="fi-d" accept=".txt,.csv" onchange="onImportDialogue(event)">
+
+  <button class="btn btn-import" onclick="triggerImport('s')">📂 匯入 Selection</button>
+  <input type="file" id="fi-s" accept=".txt,.csv" onchange="onImportSelection(event)">
+
+  <div class="sep"></div>
+
+  <button class="btn btn-layout" onclick="doLayout()">📐 自動排版</button>
+  <button class="btn btn-layout" onclick="cy&&cy.fit()">🔍 全部顯示</button>
+
+  <div class="sep"></div>
+
+  <button class="btn btn-export" onclick="doExportDialogue()">💾 匯出 Dialogue</button>
+  <button class="btn btn-export" onclick="doExportSelection()">💾 匯出 Selection</button>
+
+  <span id="status">請匯入 Dialogue 或 Selection 檔案</span>
+</div>
+
+<!-- ─── Main ─── -->
+<div id="main">
+  <div id="cy-wrap">
+    <div id="cy"></div>
+    <div id="empty-msg">
+      <div class="big">🗺</div>
+      <p>點擊左上角「匯入 Dialogue」或「匯入 Selection」<br>即可將劇情 txt 檔案解析成流程圖</p>
+    </div>
+    <div id="legend">
+      <div class="li"><div class="ld" style="background:#1158c7"></div>Group（對話）</div>
+      <div class="li"><div class="ld" style="background:#8b1a1a"></div>Group（戰鬥）</div>
+      <div class="li"><div class="ld" style="background:#7d5a00"></div>Group（場景跳轉）</div>
+      <div class="li"><div class="ld" style="background:#5a2da6"></div>選項分支 (SE)</div>
+      <div class="li"><div class="ld" style="background:#4a3000"></div>條件分支 (IF)</div>
+    </div>
+  </div>
+
+  <div id="panel">
+    <div id="ph">節點屬性</div>
+    <div id="pc"><div class="empty-panel">點選節點<br>以查看並編輯內容</div></div>
+    <div id="pa" style="display:none">
+      <button class="btn btn-export" style="flex:1" onclick="saveEdit()">✓ 儲存</button>
+      <button class="btn btn-import" style="flex:1" onclick="deselect()">✕ 取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════
+let dialogueGroups = {};  // id(int) → { id, rawLines[] }
+let selectionSets  = {};  // id(int) → { id, rawLines[] }
+let dialogueFile   = 'Dialogue.txt';
+let selectionFile  = 'Selection.txt';
+let cy             = null;
+let selectedId     = null;
+
+// ═══════════════════════════════════════════════════════════
+//  Parsers
+// ═══════════════════════════════════════════════════════════
+function parseDialogue(text) {
+  const lines = text.split(/\r?\n/);
+  const groups = {};
+  let cur = null;
+  for (const raw of lines) {
+    const m = raw.trim().match(/^【Group_(\d+)】/);
+    if (m) { cur = +m[1]; if (!groups[cur]) groups[cur] = { id:cur, rawLines:[] }; continue; }
+    if (raw.trim().match(/^【GroupSection_\d+】/)) continue;
+    if (cur !== null) groups[cur].rawLines.push(raw);
+  }
+  // trim trailing blank lines
+  for (const g of Object.values(groups)) {
+    while (g.rawLines.length && !g.rawLines[g.rawLines.length-1].trim()) g.rawLines.pop();
+  }
+  return groups;
+}
+
+function parseSelection(text) {
+  const lines = text.split(/\r?\n/);
+  const sets = {};
+  let cur = null;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (t === '【選擇】') continue;
+    const m = t.match(/^【SE_(\d+)】/);
+    if (m) { cur = +m[1]; if (!sets[cur]) sets[cur] = { id:cur, rawLines:[] }; continue; }
+    if (cur !== null) sets[cur].rawLines.push(raw);
+  }
+  return sets;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Edge Extraction
+// ═══════════════════════════════════════════════════════════
+function edgesFromGroup(rawLines) {
+  const jumps = new Set();
+  const sels  = new Set();
+  const conds = [];
+  let battleId = null, sceneId = null;
+
+  for (const line of rawLines) {
+    const t = line.trim();
+    // Conditional branch (check BEFORE simple jump scan)
+    const ifm = t.match(/\{IF_([^:]+):G_(\d+):G_(\d+)\}/);
+    if (ifm) { conds.push({ cond:ifm[1], tG:+ifm[2], fG:+ifm[3] }); continue; }
+    // Selection trigger
+    const sm = t.match(/\{S_(\d+)\}/);
+    if (sm) { sels.add(+sm[1]); continue; }
+    // Direct jumps (all occurrences)
+    for (const gm of t.matchAll(/\{G_(\d+)\}/g)) jumps.add(+gm[1]);
+    // Battle / Scene
+    const bm = t.match(/\{BattleSetting_([^}]+)\}/); if (bm) battleId = bm[1];
+    const xm = t.match(/\{GOSCENE_(\d+)\}/);         if (xm) sceneId  = +xm[1];
+  }
+  return { jumps:[...jumps], sels:[...sels], conds, battleId, sceneId };
+}
+
+function optionsFromSE(rawLines) {
+  const opts = [];
+  for (const line of rawLines) {
+    const t = line.trim();
+    if (!t.startsWith('Buttonset') || t.endsWith('null')) continue;
+    const parts = t.split(':');
+    if (parts.length < 3) continue;
+    const label = parts[1].trim();
+    const gm = parts.slice(2).join(':').match(/\{G_(\d+)\}/);
+    if (gm) opts.push({ label, target:+gm[1] });
+  }
+  return opts;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Preview helpers
+// ═══════════════════════════════════════════════════════════
+function groupPreview(rawLines) {
+  for (const l of rawLines) {
+    const t = l.trim();
+    if (t && !t.startsWith('{') && !t.startsWith('【')) return t.substring(0,40);
+  }
+  for (const l of rawLines) {
+    const t = l.trim();
+    if (t.startsWith('{')) return t.substring(0,40);
+  }
+  return '（空）';
+}
+
+function sePreview(rawLines) {
+  return rawLines
+    .map(l => l.trim())
+    .filter(l => l.startsWith('Buttonset') && !l.includes('null'))
+    .map(l => { const p = l.split(':'); return p.length >= 2 ? p[1].trim() : ''; })
+    .filter(Boolean)
+    .slice(0,3).join(' / ')
+    .substring(0,45) || '（空）';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Build Cytoscape Elements
+// ═══════════════════════════════════════════════════════════
+function buildElements() {
+  const els = [];
+  let ei = 0; // edge counter for unique ids
+  const edge = (src, tgt, lbl='') => {
+    els.push({ group:'edges', data:{ id:`e${ei++}`, source:src, target:tgt, label:lbl } });
+  };
+
+  // ── Group nodes ──
+  for (const [k, g] of Object.entries(dialogueGroups)) {
+    const id = +k;
+    const info = edgesFromGroup(g.rawLines);
+    const prev = groupPreview(g.rawLines);
+
+    let ntype = 'group';
+    if (info.battleId) ntype = 'battle';
+    else if (info.sceneId !== null) ntype = 'scene';
+
+    els.push({ group:'nodes', data:{
+      id: `Group_${id}`,
+      label: `Group ${id}\n${prev}`,
+      ntype
+    }});
+
+    // Direct jumps
+    for (const t of info.jumps) {
+      if (dialogueGroups[t] !== undefined) edge(`Group_${id}`, `Group_${t}`);
+    }
+    // Selection triggers
+    for (const s of info.sels) {
+      edge(`Group_${id}`, `SE_${s}`, '選項');
+    }
+    // Conditionals → inline condition node
+    info.conds.forEach((c, ci) => {
+      const cnid = `Cond_${id}_${ci}`;
+      els.push({ group:'nodes', data:{ id:cnid, label:`IF\n${c.cond}`, ntype:'cond' }});
+      edge(`Group_${id}`, cnid);
+      if (dialogueGroups[c.tG]) edge(cnid, `Group_${c.tG}`, 'TRUE');
+      if (dialogueGroups[c.fG]) edge(cnid, `Group_${c.fG}`, 'FALSE');
+    });
+  }
+
+  // ── SE nodes ──
+  for (const [k, se] of Object.entries(selectionSets)) {
+    const id = +k;
+    const prev = sePreview(se.rawLines);
+    els.push({ group:'nodes', data:{
+      id: `SE_${id}`,
+      label: `SE ${id}\n${prev}`,
+      ntype: 'se'
+    }});
+
+    for (const opt of optionsFromSE(se.rawLines)) {
+      if (dialogueGroups[opt.target] !== undefined)
+        edge(`SE_${id}`, `Group_${opt.target}`, opt.label.substring(0,12));
+    }
+  }
+
+  return els;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Cytoscape Init
+// ═══════════════════════════════════════════════════════════
+const STYLE = [
+  { selector:'node[ntype="group"]', style:{
+    'background-color':'#0d2d6e','border-color':'#1f6feb','border-width':2,
+    'shape':'roundrectangle','width':170,'height':56,
+    'label':'data(label)','color':'#c9d1d9','font-size':10,
+    'text-wrap':'wrap','text-max-width':158,'text-valign':'center','text-halign':'center'
+  }},
+  { selector:'node[ntype="battle"]', style:{
+    'background-color':'#4a0d0d','border-color':'#f85149','border-width':2,
+    'shape':'roundrectangle','width':170,'height':56,
+    'label':'data(label)','color':'#c9d1d9','font-size':10,
+    'text-wrap':'wrap','text-max-width':158,'text-valign':'center','text-halign':'center'
+  }},
+  { selector:'node[ntype="scene"]', style:{
+    'background-color':'#3d2e00','border-color':'#e3b341','border-width':2,
+    'shape':'roundrectangle','width':170,'height':56,
+    'label':'data(label)','color':'#c9d1d9','font-size':10,
+    'text-wrap':'wrap','text-max-width':158,'text-valign':'center','text-halign':'center'
+  }},
+  { selector:'node[ntype="se"]', style:{
+    'background-color':'#2d1b69','border-color':'#a371f7','border-width':2,
+    'shape':'diamond','width':150,'height':72,
+    'label':'data(label)','color':'#c9d1d9','font-size':10,
+    'text-wrap':'wrap','text-max-width':130,'text-valign':'center','text-halign':'center'
+  }},
+  { selector:'node[ntype="cond"]', style:{
+    'background-color':'#3d2f00','border-color':'#d4a015','border-width':2,
+    'shape':'hexagon','width':120,'height':54,
+    'label':'data(label)','color':'#c9d1d9','font-size':10,
+    'text-wrap':'wrap','text-max-width':110,'text-valign':'center','text-halign':'center'
+  }},
+  { selector:'node:selected', style:{ 'border-color':'#f0883e','border-width':3 }},
+  { selector:'edge', style:{
+    'width':1.5,'line-color':'#30363d','target-arrow-color':'#30363d',
+    'target-arrow-shape':'triangle','curve-style':'bezier',
+    'label':'data(label)','font-size':9,'color':'#8b949e',
+    'text-background-color':'#0d1117','text-background-opacity':0.85,'text-background-padding':2
+  }},
+  { selector:'edge[label="TRUE"]',  style:{ 'line-color':'#3fb950','target-arrow-color':'#3fb950' }},
+  { selector:'edge[label="FALSE"]', style:{ 'line-color':'#f85149','target-arrow-color':'#f85149' }},
+  { selector:'edge[label="選項"]',  style:{ 'line-color':'#a371f7','target-arrow-color':'#a371f7','line-style':'dashed' }},
+];
+
+function initCy(els) {
+  if (cy) cy.destroy();
+  document.getElementById('empty-msg').style.display = 'none';
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: els,
+    style: STYLE,
+    layout: { name:'cose', animate:false, nodeRepulsion:8000, padding:50, idealEdgeLength:120 }
+  });
+
+  cy.on('tap', 'node', e => { selectedId = e.target.id(); renderPanel(); });
+  cy.on('tap',        e => { if (e.target === cy) deselect(); });
+}
+
+function doLayout() {
+  if (!cy) return;
+  cy.layout({ name:'cose', animate:true, nodeRepulsion:8000, padding:50, idealEdgeLength:120 }).run();
+}
+
+function refreshGraph() {
+  const total = Object.keys(dialogueGroups).length + Object.keys(selectionSets).length;
+  if (!total) return;
+  initCy(buildElements());
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Panel
+// ═══════════════════════════════════════════════════════════
+function renderPanel() {
+  const pc = document.getElementById('pc');
+  const pa = document.getElementById('pa');
+  if (!selectedId) {
+    pc.innerHTML = '<div class="empty-panel">點選節點<br>以查看並編輯內容</div>';
+    pa.style.display = 'none';
+    return;
+  }
+
+  let html = '';
+
+  if (selectedId.startsWith('Group_')) {
+    const id = +selectedId.replace('Group_','');
+    const g  = dialogueGroups[id]; if (!g) return;
+    const info = edgesFromGroup(g.rawLines);
+    const ntype = info.battleId ? '⚔ 戰鬥 Group' : info.sceneId !== null ? '🚪 場景跳轉 Group' : '💬 對話 Group';
+    const tc = info.battleId ? 'tb' : 'tg';
+
+    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag ${tc}">${ntype}</span></div>`;
+    html += `<div class="fl">Group ID</div><div class="fv">${id}</div>`;
+    if (info.battleId) html += `<div class="fl">戰鬥 ID</div><div class="fv">${info.battleId}</div>`;
+
+    const links = [
+      ...info.jumps.map(j=>`Group_${j}`),
+      ...info.sels.map(s=>`SE_${s}`),
+      ...info.conds.flatMap(c=>[`Group_${c.tG}`,`Group_${c.fG}`])
+    ];
+    if (links.length) html += `<div class="fl">連結到</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
+
+    html += `<div class="fl">內容（直接編輯，儲存後圖形更新）</div>`;
+    html += `<textarea id="node-editor">${escHtml(g.rawLines.join('\n'))}</textarea>`;
+
+  } else if (selectedId.startsWith('SE_')) {
+    const id = +selectedId.replace('SE_','');
+    const se = selectionSets[id]; if (!se) return;
+    const opts = optionsFromSE(se.rawLines);
+
+    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
+    html += `<div class="fl">SE ID</div><div class="fv">${id}</div>`;
+    if (opts.length) {
+      html += `<div class="fl">選項（${opts.length} 個）</div>`;
+      opts.forEach(o => { html += `<div class="fv" style="font-size:11px;padding:2px 0">▸ ${escHtml(o.label)} → Group_${o.target}</div>`; });
+    }
+    html += `<div class="fl">內容（直接編輯）</div>`;
+    html += `<textarea id="node-editor">${escHtml(se.rawLines.join('\n'))}</textarea>`;
+
+  } else if (selectedId.startsWith('Cond_')) {
+    html += `<div class="fl">節點類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
+    html += `<div class="fl" style="margin-top:16px">說明</div>`;
+    html += `<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8">此節點由對應 Group 的<br><code>{IF_condition:G_true:G_false}</code> 產生<br>請編輯該 Group 的內容來修改</div>`;
+    pc.innerHTML = html;
+    pa.style.display = 'none';
+    return;
+  }
+
+  pc.innerHTML = html;
+  pa.style.display = 'flex';
+}
+
+function saveEdit() {
+  const ed = document.getElementById('node-editor');
+  if (!ed || !selectedId) return;
+  const lines = ed.value.split('\n');
+
+  if (selectedId.startsWith('Group_')) {
+    dialogueGroups[+selectedId.replace('Group_','')].rawLines = lines;
+  } else if (selectedId.startsWith('SE_')) {
+    selectionSets[+selectedId.replace('SE_','')].rawLines = lines;
+  }
+
+  const savedId = selectedId;
+  refreshGraph();
+  // Re-select same node after rebuild
+  setTimeout(() => {
+    selectedId = savedId;
+    if (cy) { cy.getElementById(savedId).select(); renderPanel(); }
+  }, 80);
+  setStatus();
+}
+
+function deselect() {
+  selectedId = null;
+  renderPanel();
+  if (cy) cy.elements().unselect();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Import
+// ═══════════════════════════════════════════════════════════
+function triggerImport(t) {
+  document.getElementById(t==='d' ? 'fi-d' : 'fi-s').click();
+}
+
+function onImportDialogue(e) {
+  const f = e.target.files[0]; if (!f) return;
+  dialogueFile = f.name;
+  const r = new FileReader();
+  r.onload = ev => { dialogueGroups = parseDialogue(ev.target.result); setStatus(); refreshGraph(); };
+  r.readAsText(f, 'UTF-8');
+  e.target.value = '';
+}
+
+function onImportSelection(e) {
+  const f = e.target.files[0]; if (!f) return;
+  selectionFile = f.name;
+  const r = new FileReader();
+  r.onload = ev => { selectionSets = parseSelection(ev.target.result); setStatus(); refreshGraph(); };
+  r.readAsText(f, 'UTF-8');
+  e.target.value = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Export
+// ═══════════════════════════════════════════════════════════
+function doExportDialogue() {
+  if (!Object.keys(dialogueGroups).length) { alert('尚未載入 Dialogue 資料！'); return; }
+  const ids = Object.keys(dialogueGroups).map(Number).sort((a,b)=>a-b);
+  let out = '';
+  for (const id of ids) {
+    const g = dialogueGroups[id];
+    out += `【Group_${id}】\n`;
+    out += g.rawLines.join('\n');
+    out += '\n\n';
+  }
+  download(out.trimEnd() + '\n', dialogueFile);
+}
+
+function doExportSelection() {
+  if (!Object.keys(selectionSets).length) { alert('尚未載入 Selection 資料！'); return; }
+  const ids = Object.keys(selectionSets).map(Number).sort((a,b)=>a-b);
+  let out = '【選擇】\n';
+  for (const id of ids) {
+    const se = selectionSets[id];
+    out += `【SE_${id}】\n`;
+    out += se.rawLines.join('\n');
+    out += '\n';
+  }
+  download(out, selectionFile);
+}
+
+function download(content, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type:'text/plain;charset=utf-8' }));
+  a.download = filename;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Helpers
+// ═══════════════════════════════════════════════════════════
+function setStatus() {
+  const gc = Object.keys(dialogueGroups).length;
+  const sc = Object.keys(selectionSets).length;
+  const parts = [];
+  if (gc) parts.push(`${gc} Groups`);
+  if (sc) parts.push(`${sc} SE`);
+  document.getElementById('status').textContent = parts.length ? parts.join('  •  ') : '請匯入 Dialogue 或 Selection 檔案';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
