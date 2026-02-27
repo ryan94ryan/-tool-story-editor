@@ -270,6 +270,7 @@ input[type=file] { display:none; }
     </div>
   </div>
   <a href="help.html" target="_blank" class="btn btn-secondary" style="text-decoration:none;">❓ 說明</a>
+  <span id="project-id" style="display:none;background:#0e4429;border:1px solid #238636;padding:2px 8px;border-radius:4px;font-size:11px;color:#3fb950;margin-right:8px;">📁 <span id="project-id-text"></span></span>
   <span id="status">請匯入主檔，或使用「個別匯入」載入各章節</span>
 </div>
 
@@ -1384,6 +1385,7 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════
 const CLOUD_STORAGE_KEY = 'ayan_editor_apikey';
 const CLOUD_BINS_KEY = 'ayan_editor_bins';
+let currentProjectId = null; // Track current loaded project
 
 function getApiKey() {
   return localStorage.getItem(CLOUD_STORAGE_KEY) || '';
@@ -1409,6 +1411,18 @@ function showCloudSettings() {
   }
 }
 
+function setCurrentProject(projectId) {
+  currentProjectId = projectId;
+  const el = document.getElementById('project-id');
+  const textEl = document.getElementById('project-id-text');
+  if (projectId) {
+    textEl.textContent = projectId;
+    el.style.display = 'inline-block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 async function cloudSave() {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -1416,9 +1430,15 @@ async function cloudSave() {
     return;
   }
 
-  const projectKey = prompt('請輸入專案代碼（用於識別這個專案，例如：tianmo_v1）：');
-  if (!projectKey || !projectKey.trim()) return;
-  const key = projectKey.trim().toLowerCase();
+  let key = currentProjectId;
+  if (!key) {
+    const projectKey = prompt('請輸入專案代碼（用於識別這個專案，例如：tianmo_v1）：');
+    if (!projectKey || !projectKey.trim()) return;
+    key = projectKey.trim().toLowerCase();
+  } else {
+    // Confirm using current project
+    if (!confirm(`確定要儲存到專案「${key}」嗎？`)) return;
+  }
 
   setStatus('☁ 正在儲存到雲端...');
 
@@ -1467,6 +1487,7 @@ async function cloudSave() {
       setBinsMap(binsMap);
     }
 
+    setCurrentProject(key);
     setStatus(`☁ 已儲存到雲端 [${key}]`);
     alert(`雲端存檔成功！\n\n專案代碼：${key}\n\n下次在任何裝置輸入相同的 API Key 和專案代碼即可讀取。`);
   } catch (err) {
@@ -1525,6 +1546,7 @@ async function cloudLoad() {
     updateBadges();
 
     const savedAt = data.savedAt ? new Date(data.savedAt).toLocaleString() : '未知';
+    setCurrentProject(key);
     setStatus(`☁ 已從雲端載入 [${key}]`);
 
     // Switch to first chapter with content
