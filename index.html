@@ -194,9 +194,22 @@ input[type=file] { display:none; }
 #editor-highlight .hl-comment { color:#2d6a4f; }
 #editor-highlight .hl-cmd { color:#58a6ff; }
 #editor-highlight .hl-text { color:#c9d1d9; }
+/* Command visibility modes */
+#editor-wrap.cmd-dim .hl-cmd { color:#484f58; opacity:0.5; }
+#editor-wrap.cmd-hide .hl-cmd { opacity:0; }
+.cmd-toggle { display:flex; align-items:center; }
+.cmd-btn {
+  padding:4px 10px; border:1px solid #30363d; background:#21262d;
+  color:#8b949e; font-size:11px; cursor:pointer; transition:all .15s;
+}
+.cmd-btn:first-of-type { border-radius:4px 0 0 4px; }
+.cmd-btn:last-of-type { border-radius:0 4px 4px 0; }
+.cmd-btn:not(:first-of-type) { border-left:none; }
+.cmd-btn:hover { background:#30363d; }
+.cmd-btn.active { background:#238636; border-color:#238636; color:#fff; }
 #modal-editor {
   position:absolute; inset:0; padding:8px; resize:none;
-  background:transparent; color:#c9d1d9; border:none;
+  background:transparent; color:transparent; border:none;
   font-family:'Courier New',monospace; font-size:14px; line-height:1.6;
   z-index:2; caret-color:#c9d1d9;
 }
@@ -327,6 +340,13 @@ input[type=file] { display:none; }
       </div>
     </div>
     <div id="modal-footer">
+      <div class="cmd-toggle">
+        <span style="font-size:11px;color:#8b949e;margin-right:6px;">指令：</span>
+        <button class="cmd-btn active" onclick="setCmdMode('normal')">顯示</button>
+        <button class="cmd-btn" onclick="setCmdMode('dim')">淡化</button>
+        <button class="cmd-btn" onclick="setCmdMode('hide')">隱藏</button>
+      </div>
+      <div style="flex:1"></div>
       <button class="btn btn-success" onclick="saveModal()">✓ 儲存</button>
       <button class="btn btn-secondary" onclick="closeModal()">✕ 取消</button>
     </div>
@@ -1242,6 +1262,17 @@ function syncScroll() {
   const highlight = document.getElementById('editor-highlight');
   highlight.scrollTop = editor.scrollTop;
   highlight.scrollLeft = editor.scrollLeft;
+}
+
+function setCmdMode(mode) {
+  const wrap = document.getElementById('editor-wrap');
+  wrap.classList.remove('cmd-dim', 'cmd-hide');
+  if (mode === 'dim') wrap.classList.add('cmd-dim');
+  else if (mode === 'hide') wrap.classList.add('cmd-hide');
+  // Update button states
+  document.querySelectorAll('.cmd-btn').forEach(btn => btn.classList.remove('active'));
+  const btnMap = { normal: 0, dim: 1, hide: 2 };
+  document.querySelectorAll('.cmd-btn')[btnMap[mode]]?.classList.add('active');
 }
 
 function escHtml(s) {
