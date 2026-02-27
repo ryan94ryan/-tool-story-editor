@@ -196,7 +196,7 @@ input[type=file] { display:none; }
 #editor-highlight .hl-text { color:#c9d1d9; }
 /* Command visibility modes */
 #editor-wrap.cmd-dim .hl-cmd { color:#484f58; opacity:0.5; }
-.hl-fold { color:#6e7681; font-size:0.85em; }
+.hl-hidden { opacity:0; }
 .cmd-toggle { display:flex; align-items:center; }
 .cmd-btn {
   padding:4px 10px; border:1px solid #30363d; background:#21262d;
@@ -554,8 +554,14 @@ function optionsFromSE(rawLines) {
   return opts;
 }
 function groupPreview(rawLines) {
-  for (const l of rawLines) { const t=l.trim(); if(t&&!t.startsWith('{')&&!t.startsWith('【')&&!t.startsWith('//')) return t.substring(0,38); }
-  for (const l of rawLines) { const t=l.trim(); if(t.startsWith('{')) return t.substring(0,38); }
+  // Find first line with meaningful content (not empty, not pure commands)
+  for (const l of rawLines) {
+    const t = l.trim();
+    if (!t) continue; // skip empty
+    // Check if line has any text after removing commands
+    const textOnly = t.replace(/\{[^}]+\}/g, '').trim();
+    if (textOnly) return t.substring(0, 38);
+  }
   return '（空）';
 }
 function sePreview(rawLines) {
@@ -1239,7 +1245,34 @@ function syncHighlight() {
     if (trimmed.startsWith('//')) {
       return `<span class="hl-comment">${escHtml(line)}</span>`;
     }
-    // Highlight {} commands
+
+    if (isFold) {
+      // Fold mode: hide commands, check if line has any visible text
+      const textOnly = line.replace(/\{[^}]+\}/g, '');
+      if (!textOnly.trim()) {
+        // Line is only commands or empty - hide entire line (keep space for cursor alignment)
+        return `<span class="hl-hidden">${' '.repeat(line.length) || ' '}</span>`;
+      }
+      // Mixed line: show text, hide commands
+      let result = '';
+      let lastIdx = 0;
+      const regex = /\{[^}]+\}/g;
+      let match;
+      while ((match = regex.exec(line)) !== null) {
+        if (match.index > lastIdx) {
+          result += `<span class="hl-text">${escHtml(line.slice(lastIdx, match.index))}</span>`;
+        }
+        // Hide command with invisible spacing
+        result += `<span class="hl-hidden">${' '.repeat(match[0].length)}</span>`;
+        lastIdx = regex.lastIndex;
+      }
+      if (lastIdx < line.length) {
+        result += `<span class="hl-text">${escHtml(line.slice(lastIdx))}</span>`;
+      }
+      return result || `<span class="hl-text"> </span>`;
+    }
+
+    // Normal/dim mode: highlight {} commands
     let result = '';
     let lastIdx = 0;
     const regex = /\{[^}]+\}/g;
@@ -1248,13 +1281,7 @@ function syncHighlight() {
       if (match.index > lastIdx) {
         result += `<span class="hl-text">${escHtml(line.slice(lastIdx, match.index))}</span>`;
       }
-      if (isFold) {
-        // Fold mode: show [...] placeholder with same width spacing
-        const spaces = ' '.repeat(Math.max(0, match[0].length - 3));
-        result += `<span class="hl-fold">[·]${spaces}</span>`;
-      } else {
-        result += `<span class="hl-cmd">${escHtml(match[0])}</span>`;
-      }
+      result += `<span class="hl-cmd">${escHtml(match[0])}</span>`;
       lastIdx = regex.lastIndex;
     }
     if (lastIdx < line.length) {
