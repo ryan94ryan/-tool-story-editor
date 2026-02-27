@@ -196,7 +196,7 @@ input[type=file] { display:none; }
 #editor-highlight .hl-text { color:#c9d1d9; }
 /* Command visibility modes */
 #editor-wrap.cmd-dim .hl-cmd { color:#484f58; opacity:0.5; }
-#editor-wrap.cmd-hide .hl-cmd { opacity:0; }
+.hl-fold { color:#6e7681; font-size:0.85em; }
 .cmd-toggle { display:flex; align-items:center; }
 .cmd-btn {
   padding:4px 10px; border:1px solid #30363d; background:#21262d;
@@ -344,7 +344,7 @@ input[type=file] { display:none; }
         <span style="font-size:11px;color:#8b949e;margin-right:6px;">指令：</span>
         <button class="cmd-btn active" onclick="setCmdMode('normal')">顯示</button>
         <button class="cmd-btn" onclick="setCmdMode('dim')">淡化</button>
-        <button class="cmd-btn" onclick="setCmdMode('hide')">隱藏</button>
+        <button class="cmd-btn" onclick="setCmdMode('fold')">折疊</button>
       </div>
       <div style="flex:1"></div>
       <button class="btn btn-success" onclick="saveModal()">✓ 儲存</button>
@@ -1194,8 +1194,10 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
+let isModalDragging = false; // Prevent close during drag/resize
+
 function onOverlayClick(e) {
-  if (e.target.id === 'modal-overlay') closeModal();
+  if (e.target.id === 'modal-overlay' && !isModalDragging) closeModal();
 }
 
 function saveModal() {
@@ -1226,6 +1228,7 @@ function syncHighlight() {
   const editor = document.getElementById('modal-editor');
   const highlight = document.getElementById('editor-highlight');
   const text = editor.value;
+  const isFold = cmdDisplayMode === 'fold';
 
   // Build highlighted HTML
   const lines = text.split('\n');
@@ -1244,7 +1247,13 @@ function syncHighlight() {
       if (match.index > lastIdx) {
         result += `<span class="hl-text">${escHtml(line.slice(lastIdx, match.index))}</span>`;
       }
-      result += `<span class="hl-cmd">${escHtml(match[0])}</span>`;
+      if (isFold) {
+        // Fold mode: show [...] placeholder with same width spacing
+        const spaces = ' '.repeat(Math.max(0, match[0].length - 3));
+        result += `<span class="hl-fold">[·]${spaces}</span>`;
+      } else {
+        result += `<span class="hl-cmd">${escHtml(match[0])}</span>`;
+      }
       lastIdx = regex.lastIndex;
     }
     if (lastIdx < line.length) {
@@ -1264,15 +1273,19 @@ function syncScroll() {
   highlight.scrollLeft = editor.scrollLeft;
 }
 
+let cmdDisplayMode = 'normal';
+
 function setCmdMode(mode) {
+  cmdDisplayMode = mode;
   const wrap = document.getElementById('editor-wrap');
-  wrap.classList.remove('cmd-dim', 'cmd-hide');
+  wrap.classList.remove('cmd-dim');
   if (mode === 'dim') wrap.classList.add('cmd-dim');
-  else if (mode === 'hide') wrap.classList.add('cmd-hide');
   // Update button states
   document.querySelectorAll('.cmd-btn').forEach(btn => btn.classList.remove('active'));
-  const btnMap = { normal: 0, dim: 1, hide: 2 };
+  const btnMap = { normal: 0, dim: 1, fold: 2 };
   document.querySelectorAll('.cmd-btn')[btnMap[mode]]?.classList.add('active');
+  // Re-render highlight with new mode
+  syncHighlight();
 }
 
 function escHtml(s) {
@@ -1288,6 +1301,7 @@ function initModalDrag() {
   header.addEventListener('mousedown', e => {
     if (e.target.id === 'modal-close') return;
     dragging = true;
+    isModalDragging = true;
     startX = e.clientX;
     startY = e.clientY;
     const rect = box.getBoundingClientRect();
@@ -1306,7 +1320,10 @@ function initModalDrag() {
     box.style.transform = 'none';
   });
 
-  document.addEventListener('mouseup', () => { dragging = false; });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    setTimeout(() => { isModalDragging = false; }, 50);
+  });
 }
 
 // Modal resize (corner)
@@ -1317,6 +1334,7 @@ function initModalResize() {
 
   handle.addEventListener('mousedown', e => {
     resizing = true;
+    isModalDragging = true;
     startX = e.clientX;
     startY = e.clientY;
     startW = box.offsetWidth;
@@ -1333,7 +1351,10 @@ function initModalResize() {
     box.style.height = h + 'px';
   });
 
-  document.addEventListener('mouseup', () => { resizing = false; });
+  document.addEventListener('mouseup', () => {
+    resizing = false;
+    setTimeout(() => { isModalDragging = false; }, 50);
+  });
 }
 
 // Ctrl + wheel to zoom font
