@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>阿煙劇本編輯工具 - 使用說明</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  line-height: 1.8;
+  padding: 40px 20px;
+}
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+h1 {
+  color: #58a6ff;
+  font-size: 28px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.subtitle {
+  color: #8b949e;
+  font-size: 14px;
+  margin-bottom: 40px;
+}
+h2 {
+  color: #79c0ff;
+  font-size: 18px;
+  margin-top: 40px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #30363d;
+}
+h3 {
+  color: #c9d1d9;
+  font-size: 15px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+p, li {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+ul, ol {
+  padding-left: 24px;
+}
+li {
+  margin-bottom: 8px;
+}
+code {
+  background: #21262d;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #79c0ff;
+}
+.highlight-box {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+}
+.highlight-box.warning {
+  border-color: #d29922;
+  background: #1c1c00;
+}
+.highlight-box.success {
+  border-color: #238636;
+  background: #0d1f0d;
+}
+.step {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+}
+.step-num {
+  background: #238636;
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.step-content {
+  flex: 1;
+}
+a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+.back-link {
+  display: inline-block;
+  margin-top: 40px;
+  padding: 10px 20px;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+}
+.back-link:hover {
+  background: #30363d;
+  text-decoration: none;
+}
+.shortcut {
+  display: inline-block;
+  background: #30363d;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 0 2px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+th, td {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid #30363d;
+  font-size: 13px;
+}
+th {
+  background: #21262d;
+  color: #79c0ff;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>🎬 阿煙劇本編輯工具</h1>
+<p class="subtitle">使用說明文件</p>
+
+<!-- ===== 快速開始 ===== -->
+<h2>🚀 快速開始</h2>
+
+<h3>本地使用（不需要雲端）</h3>
+<ol>
+  <li>點擊「📂 匯入主檔」載入現有的 Master 檔案</li>
+  <li>在左側選擇章節，開始編輯</li>
+  <li>編輯完成後點擊「💾 儲存主檔」下載</li>
+  <li>需要釋出時點擊「🚀 一鍵釋出」產生 release.zip</li>
+</ol>
+
+<h3>雲端同步（跨裝置使用）</h3>
+<div class="highlight-box success">
+  <strong>優點：</strong>可以在不同電腦、不同地點繼續編輯同一個專案
+</div>
+
+<!-- ===== 雲端設定 ===== -->
+<h2>☁ 雲端存儲設定（jsonbin.io）</h2>
+
+<h3>第一次設定（只需做一次）</h3>
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-content">
+    前往 <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> 點擊右上角「Sign Up」免費註冊帳號
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-content">
+    註冊並登入後，點擊右上角頭像 → 選擇「API Keys」
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-content">
+    複製你的 <strong>X-Master-Key</strong>（格式類似：<code>$2a$10$xxxxxx...</code>）
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">4</div>
+  <div class="step-content">
+    回到編輯器，點擊「☁ 雲端 → 設定 API Key」，貼上你的 Key
+  </div>
+</div>
+
+<div class="highlight-box warning">
+  <strong>注意：</strong>API Key 會儲存在瀏覽器的 localStorage 中，換電腦或清除瀏覽器資料後需要重新輸入。
+</div>
+
+<h3>雲端存檔</h3>
+<ol>
+  <li>點擊「☁ 雲端 → 雲端存檔」</li>
+  <li>輸入一個專案代碼（例如：<code>tianmo_v1</code>）</li>
+  <li>存檔成功！資料會儲存到你的 jsonbin.io 帳號</li>
+</ol>
+
+<h3>雲端讀取</h3>
+<ol>
+  <li>點擊「☁ 雲端 → 雲端讀取」</li>
+  <li>輸入之前設定的專案代碼</li>
+  <li>自動載入之前的進度！</li>
+</ol>
+
+<h3>在其他裝置繼續編輯</h3>
+<ol>
+  <li>在新裝置開啟編輯器網頁</li>
+  <li>設定你的 API Key（同一個 jsonbin.io 帳號）</li>
+  <li>使用「雲端讀取」輸入專案代碼</li>
+  <li>繼續編輯！</li>
+</ol>
+
+<!-- ===== 操作說明 ===== -->
+<h2>🖱 操作說明</h2>
+
+<table>
+  <tr>
+    <th>操作</th>
+    <th>說明</th>
+  </tr>
+  <tr>
+    <td><span class="shortcut">左鍵</span> 點擊節點</td>
+    <td>選取節點，右側顯示節點資訊</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">左鍵</span> 拖曳節點</td>
+    <td>移動節點位置（多選時同步移動）</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">右鍵</span> 拖曳</td>
+    <td>框選多個節點</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">右鍵</span> 點擊空白</td>
+    <td>取消所有選取</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">滾輪</span></td>
+    <td>縮放畫布</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">Ctrl</span> + <span class="shortcut">滾輪</span>（編輯器內）</td>
+    <td>調整編輯器字體大小</td>
+  </tr>
+  <tr>
+    <td><span class="shortcut">ESC</span></td>
+    <td>關閉彈出編輯器</td>
+  </tr>
+</table>
+
+<!-- ===== 編輯器功能 ===== -->
+<h2>📝 彈出編輯器</h2>
+
+<p>點擊節點後，按「📝 開啟編輯器」會彈出編輯視窗：</p>
+
+<ul>
+  <li><strong>語法高亮：</strong>
+    <ul>
+      <li><code style="color:#2d6a4f">// 註解</code> → 墨綠色</li>
+      <li><code style="color:#58a6ff">{G_123}</code> <code style="color:#58a6ff">{IF_xxx:...}</code> → 藍色</li>
+    </ul>
+  </li>
+  <li><strong>拖曳標題欄：</strong>移動視窗位置</li>
+  <li><strong>拖曳右下角：</strong>調整視窗大小</li>
+  <li><strong>Ctrl + 滾輪：</strong>調整字體大小（10px ~ 24px）</li>
+</ul>
+
+<!-- ===== 檔案格式 ===== -->
+<h2>📁 檔案說明</h2>
+
+<h3>主檔（Master File）</h3>
+<p>包含所有章節、對話、選項、旗標的完整資料，格式為 <code>.txt</code></p>
+
+<h3>一鍵釋出（release.zip）</h3>
+<p>產生分類好的資料夾結構：</p>
+<ul>
+  <li><code>Flags/GlobalFlags.txt</code> - 全域旗標</li>
+  <li><code>MainStory/Chapter_X/</code> - 各章節的 Dialogue 和 Selection</li>
+  <li><code>Extra/</code> - 支線劇情和旗標</li>
+</ul>
+
+<!-- ===== FAQ ===== -->
+<h2>❓ 常見問題</h2>
+
+<h3>Q: API Key 會被別人看到嗎？</h3>
+<p>A: 不會。API Key 只儲存在你自己的瀏覽器中，不會上傳到任何地方。每個人使用自己的 jsonbin.io 帳號，資料完全獨立。</p>
+
+<h3>Q: 換電腦後怎麼繼續編輯？</h3>
+<p>A: 在新電腦設定同一個 API Key，然後用「雲端讀取」輸入專案代碼即可。</p>
+
+<h3>Q: 忘記專案代碼怎麼辦？</h3>
+<p>A: 登入 <a href="https://jsonbin.io" target="_blank">jsonbin.io</a>，在「Bins」頁面可以看到所有儲存的資料，名稱格式為 <code>ayan_editor_專案代碼</code>。</p>
+
+<h3>Q: jsonbin.io 免費版有什麼限制？</h3>
+<p>A: 免費版每月 10,000 次 API 請求，對於個人使用綽綽有餘。</p>
+
+<a href="index.html" class="back-link">← 返回編輯器</a>
+
+</div>
+</body>
+</html>
