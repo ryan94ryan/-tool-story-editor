@@ -136,6 +136,11 @@ input[type=file] { display:none; }
 .empty-panel { color:#484f58; font-size:12px; text-align:center; padding-top:40px; line-height:2; }
 .fl { font-size:10px; color:#8b949e; margin-top:10px; margin-bottom:3px; }
 .fv { font-size:12px; }
+.preview-box {
+  background:#0d1117; border:1px solid #30363d; border-radius:4px;
+  padding:8px; font-family:'Courier New',monospace; font-size:11px;
+  line-height:1.5; white-space:pre-wrap; color:#8b949e; max-height:140px; overflow:auto;
+}
 #node-editor {
   width:100%; min-height:260px; resize:vertical;
   background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:4px;
@@ -148,6 +153,66 @@ input[type=file] { display:none; }
 .tb  { background:#5a1e1e; border:1px solid #f85149; }
 .ts  { background:#6e40c9; border:1px solid #a371f7; }
 .tc  { background:#3d2f00; border:1px solid #e3b341; }
+
+/* ── Modal Editor ── */
+#modal-overlay {
+  display:none; position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.6); backdrop-filter:blur(2px);
+}
+#modal-overlay.open { display:flex; align-items:center; justify-content:center; }
+#modal-box {
+  background:#161b22; border:1px solid #30363d; border-radius:8px;
+  width:700px; min-width:400px; max-width:90vw;
+  height:500px; min-height:300px; max-height:85vh;
+  display:flex; flex-direction:column; position:relative;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+#modal-header {
+  padding:10px 14px; background:#21262d; border-bottom:1px solid #30363d;
+  border-radius:8px 8px 0 0; cursor:move; user-select:none;
+  display:flex; align-items:center; gap:10px;
+}
+#modal-title { flex:1; font-size:13px; font-weight:600; color:#c9d1d9; }
+#modal-close {
+  background:transparent; border:none; color:#8b949e; font-size:18px;
+  cursor:pointer; padding:0 4px; line-height:1;
+}
+#modal-close:hover { color:#f85149; }
+#modal-body { flex:1; padding:12px; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+#modal-info { font-size:11px; color:#8b949e; margin-bottom:8px; }
+#modal-info .tag { vertical-align:middle; }
+#editor-wrap {
+  flex:1; position:relative; overflow:hidden; border:1px solid #30363d; border-radius:4px;
+  background:#0d1117;
+}
+#editor-highlight {
+  position:absolute; inset:0; padding:8px; overflow:auto;
+  font-family:'Courier New',monospace; font-size:14px; line-height:1.6;
+  white-space:pre-wrap; word-wrap:break-word; color:transparent;
+  pointer-events:none; z-index:1;
+}
+#editor-highlight .hl-comment { color:#2d6a4f; }
+#editor-highlight .hl-cmd { color:#58a6ff; }
+#editor-highlight .hl-text { color:#c9d1d9; }
+#modal-editor {
+  position:absolute; inset:0; padding:8px; resize:none;
+  background:transparent; color:#c9d1d9; border:none;
+  font-family:'Courier New',monospace; font-size:14px; line-height:1.6;
+  z-index:2; caret-color:#c9d1d9;
+}
+#modal-editor:focus { outline:none; }
+#modal-footer {
+  padding:10px 12px; display:flex; gap:8px; border-top:1px solid #30363d;
+  justify-content:flex-end;
+}
+#modal-resize {
+  position:absolute; right:0; bottom:0; width:16px; height:16px;
+  cursor:nwse-resize; z-index:10;
+}
+#modal-resize::after {
+  content:''; position:absolute; right:4px; bottom:4px;
+  width:8px; height:8px; border-right:2px solid #484f58; border-bottom:2px solid #484f58;
+}
 </style>
 </head>
 <body>
@@ -231,9 +296,31 @@ input[type=file] { display:none; }
     <div id="ph">節點屬性</div>
     <div id="pc"><div class="empty-panel">點選節點<br>以查看並編輯內容</div></div>
     <div id="pa" style="display:none">
-      <button class="btn btn-success"   style="flex:1" onclick="saveEdit()">✓ 儲存</button>
+      <button class="btn btn-success"   style="flex:1" onclick="openModal()">📝 開啟編輯器</button>
       <button class="btn btn-secondary" style="flex:1" onclick="deselNode()">✕ 取消</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal Editor -->
+<div id="modal-overlay" onclick="onOverlayClick(event)">
+  <div id="modal-box">
+    <div id="modal-header">
+      <span id="modal-title">編輯節點</span>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body">
+      <div id="modal-info"></div>
+      <div id="editor-wrap">
+        <div id="editor-highlight"></div>
+        <textarea id="modal-editor" spellcheck="false" oninput="syncHighlight()" onscroll="syncScroll()"></textarea>
+      </div>
+    </div>
+    <div id="modal-footer">
+      <button class="btn btn-success" onclick="saveModal()">✓ 儲存</button>
+      <button class="btn btn-secondary" onclick="closeModal()">✕ 取消</button>
+    </div>
+    <div id="modal-resize"></div>
   </div>
 </div>
 
@@ -728,18 +815,22 @@ function renderPanel() {
     const tc=info.battleId?'tb':'tg';
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag ${tc}">${ntype}</span></div>`;
     html+=`<div class="fl">Group ID</div><div class="fv">${gId}</div>`;
+    html+=`<div class="fl">章節</div><div class="fv">${S.active}</div>`;
     if(info.battleId) html+=`<div class="fl">戰鬥 ID</div><div class="fv">${info.battleId}</div>`;
     const links=[...info.jumps.map(j=>`Group_${j}`),...info.sels.map(s=>`SE_${s}`),...info.conds.flatMap(c=>[`Group_${c.tG}`,`Group_${c.fG}`])];
     if(links.length) html+=`<div class="fl">連結</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
-    html+=`<div class="fl">內容</div><textarea id="node-editor">${esc(g.rawLines.join('\n'))}</textarea>`;
+    html+=`<div class="fl">內容預覽 (${g.rawLines.length} 行)</div>`;
+    html+=`<div class="fv preview-box">${esc(g.rawLines.slice(0,6).join('\n'))}${g.rawLines.length>6?'\n...':''}</div>`;
   } else if (id.startsWith('SE_')) {
     const sId=+id.replace('SE_','');
     const se=c.selection[sId]; if(!se) return;
     const opts=optionsFromSE(se.rawLines);
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
     html+=`<div class="fl">SE ID</div><div class="fv">${sId}</div>`;
+    html+=`<div class="fl">章節</div><div class="fv">${S.active}</div>`;
     if(opts.length){ html+=`<div class="fl">選項 (${opts.length})</div>`; opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)} → Group_${o.target}</div>`;}); }
-    html+=`<div class="fl">內容</div><textarea id="node-editor">${esc(se.rawLines.join('\n'))}</textarea>`;
+    html+=`<div class="fl">內容預覽 (${se.rawLines.length} 行)</div>`;
+    html+=`<div class="fv preview-box">${esc(se.rawLines.slice(0,6).join('\n'))}${se.rawLines.length>6?'\n...':''}</div>`;
   } else if (id.startsWith('Cond_')) {
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
     html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由 Group 的<br><code>{IF_flag:G_true:G_false}</code><br>產生，請編輯對應 Group</div>`;
@@ -1019,6 +1110,214 @@ function initPanelResize(){
 }
 
 // ═══════════════════════════════════════════════════
+//  Modal Editor
+// ═══════════════════════════════════════════════════
+let modalFontSize = 14;
+
+function openModal() {
+  if (!S.sel || !S.active || S.active==='flags' || S.active==='extra_flags') return;
+  const c = S.chapters[S.active];
+  const overlay = document.getElementById('modal-overlay');
+  const titleEl = document.getElementById('modal-title');
+  const infoEl = document.getElementById('modal-info');
+  const editor = document.getElementById('modal-editor');
+  const highlight = document.getElementById('editor-highlight');
+
+  let content = '', title = '', info = '';
+
+  if (S.sel.startsWith('Group_')) {
+    const gId = +S.sel.replace('Group_','');
+    const g = c.dialogue[gId]; if (!g) return;
+    content = g.rawLines.join('\n');
+    const ei = edgesFromGroup(g.rawLines);
+    const ntype = ei.battleId ? '⚔ 戰鬥' : ei.sceneId!==null ? '🚪 場景跳轉' : '💬 對話';
+    title = `編輯 Group_${gId}`;
+    info = `<span class="tag ${ei.battleId?'tb':'tg'}">${ntype}</span> ${S.active}`;
+  } else if (S.sel.startsWith('SE_')) {
+    const sId = +S.sel.replace('SE_','');
+    const se = c.selection[sId]; if (!se) return;
+    content = se.rawLines.join('\n');
+    title = `編輯 SE_${sId}`;
+    info = `<span class="tag ts">🔀 選項分支</span> ${S.active}`;
+  } else {
+    return;
+  }
+
+  titleEl.textContent = title;
+  infoEl.innerHTML = info;
+  editor.value = content;
+  editor.style.fontSize = modalFontSize + 'px';
+  highlight.style.fontSize = modalFontSize + 'px';
+  syncHighlight();
+
+  overlay.classList.add('open');
+  // Reset modal position to center
+  const box = document.getElementById('modal-box');
+  box.style.transform = '';
+  box.style.left = '';
+  box.style.top = '';
+
+  setTimeout(() => editor.focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function onOverlayClick(e) {
+  if (e.target.id === 'modal-overlay') closeModal();
+}
+
+function saveModal() {
+  const editor = document.getElementById('modal-editor');
+  if (!editor || !S.sel || !S.active) return;
+  const c = S.chapters[S.active];
+  const lines = editor.value.split('\n');
+
+  if (S.sel.startsWith('Group_')) {
+    const gId = +S.sel.replace('Group_','');
+    if (!c.dialogue[gId]) return;
+    c.dialogue[gId].rawLines = lines;
+    updateGroupInCy(gId, lines, c.dialogue);
+  } else if (S.sel.startsWith('SE_')) {
+    const sId = +S.sel.replace('SE_','');
+    if (!c.selection[sId]) return;
+    c.selection[sId].rawLines = lines;
+    updateSEInCy(sId, lines, c.dialogue);
+  }
+
+  syncPosCache();
+  renderPanel();
+  closeModal();
+  setStatus('已儲存');
+}
+
+function syncHighlight() {
+  const editor = document.getElementById('modal-editor');
+  const highlight = document.getElementById('editor-highlight');
+  const text = editor.value;
+
+  // Build highlighted HTML
+  const lines = text.split('\n');
+  const htmlLines = lines.map(line => {
+    // Check if line is a comment (starts with //)
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//')) {
+      return `<span class="hl-comment">${escHtml(line)}</span>`;
+    }
+    // Highlight {} commands
+    let result = '';
+    let lastIdx = 0;
+    const regex = /\{[^}]+\}/g;
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      if (match.index > lastIdx) {
+        result += `<span class="hl-text">${escHtml(line.slice(lastIdx, match.index))}</span>`;
+      }
+      result += `<span class="hl-cmd">${escHtml(match[0])}</span>`;
+      lastIdx = regex.lastIndex;
+    }
+    if (lastIdx < line.length) {
+      result += `<span class="hl-text">${escHtml(line.slice(lastIdx))}</span>`;
+    }
+    return result || `<span class="hl-text">${escHtml(line) || ' '}</span>`;
+  });
+
+  highlight.innerHTML = htmlLines.join('\n') + '\n';
+  syncScroll();
+}
+
+function syncScroll() {
+  const editor = document.getElementById('modal-editor');
+  const highlight = document.getElementById('editor-highlight');
+  highlight.scrollTop = editor.scrollTop;
+  highlight.scrollLeft = editor.scrollLeft;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Modal drag (header)
+function initModalDrag() {
+  const header = document.getElementById('modal-header');
+  const box = document.getElementById('modal-box');
+  let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+
+  header.addEventListener('mousedown', e => {
+    if (e.target.id === 'modal-close') return;
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = box.getBoundingClientRect();
+    origX = rect.left;
+    origY = rect.top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    box.style.position = 'fixed';
+    box.style.left = (origX + dx) + 'px';
+    box.style.top = (origY + dy) + 'px';
+    box.style.transform = 'none';
+  });
+
+  document.addEventListener('mouseup', () => { dragging = false; });
+}
+
+// Modal resize (corner)
+function initModalResize() {
+  const handle = document.getElementById('modal-resize');
+  const box = document.getElementById('modal-box');
+  let resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+
+  handle.addEventListener('mousedown', e => {
+    resizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startW = box.offsetWidth;
+    startH = box.offsetHeight;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const w = Math.max(400, startW + (e.clientX - startX));
+    const h = Math.max(300, startH + (e.clientY - startY));
+    box.style.width = w + 'px';
+    box.style.height = h + 'px';
+  });
+
+  document.addEventListener('mouseup', () => { resizing = false; });
+}
+
+// Ctrl + wheel to zoom font
+function initModalZoom() {
+  const wrap = document.getElementById('editor-wrap');
+  wrap.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -1 : 1;
+    modalFontSize = Math.max(10, Math.min(24, modalFontSize + delta));
+    const editor = document.getElementById('modal-editor');
+    const highlight = document.getElementById('editor-highlight');
+    editor.style.fontSize = modalFontSize + 'px';
+    highlight.style.fontSize = modalFontSize + 'px';
+  }, { passive: false });
+}
+
+// ESC to close modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('modal-overlay').classList.contains('open')) {
+    closeModal();
+  }
+});
+
+// ═══════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════
 function numSort(dict){ return Object.keys(dict).map(Number).sort((a,b)=>a-b); }
@@ -1047,6 +1346,9 @@ document.addEventListener('click',e=>{
 // ─── Init ───────────────────────────────────────────
 initPanelResize();
 initRubberBand();
+initModalDrag();
+initModalResize();
+initModalZoom();
 </script>
 </body>
 </html>
