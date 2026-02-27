@@ -62,7 +62,7 @@ input[type=file] { display:none; }
 #content { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
 
 /* Canvas */
-#cy-wrap { flex:1; position:relative; }
+#cy-wrap { flex:1; position:relative; user-select:none; }
 #cy { width:100%; height:100%; }
 #empty-msg {
   position:absolute; inset:0; display:flex; flex-direction:column;
@@ -73,9 +73,17 @@ input[type=file] { display:none; }
 #legend {
   position:absolute; bottom:12px; left:12px; background:rgba(22,27,34,.92);
   border:1px solid #30363d; border-radius:6px; padding:8px 12px; font-size:11px;
+  pointer-events:none;
 }
 .li { display:flex; align-items:center; gap:7px; margin:3px 0; }
 .ld { width:11px; height:11px; border-radius:2px; }
+
+/* ── Rubber Band ── */
+#rubberband {
+  position:absolute; pointer-events:none; display:none; z-index:20;
+  border:1.5px dashed #388bfd;
+  background:rgba(56,139,253,0.07);
+}
 
 /* ── FAB ── */
 #fab {
@@ -118,14 +126,11 @@ input[type=file] { display:none; }
   display:flex; flex-direction:column; overflow:hidden; position:relative;
   min-width:200px; max-width:680px;
 }
-/* Resize handle on left edge of panel */
 #panel-resize {
   position:absolute; left:0; top:0; bottom:0; width:5px;
-  cursor:col-resize; z-index:5;
-  background:transparent; transition:background .15s;
+  cursor:col-resize; z-index:5; background:transparent; transition:background .15s;
 }
 #panel-resize:hover, #panel-resize.dragging { background:#388bfd55; }
-
 #ph { padding:10px 14px; background:#21262d; font-size:12px; font-weight:600; border-bottom:1px solid #30363d; }
 #pc { flex:1; padding:12px; overflow-y:auto; }
 .empty-panel { color:#484f58; font-size:12px; text-align:center; padding-top:40px; line-height:2; }
@@ -150,7 +155,6 @@ input[type=file] { display:none; }
 <!-- ── Toolbar ── -->
 <div id="toolbar">
   <h1>⚔ 劇情編輯器 v2</h1>
-
   <button class="btn btn-primary" onclick="triggerImportMaster()">📂 匯入主檔</button>
   <input type="file" id="fi-master" accept=".txt" onchange="onImportMaster(event)">
 
@@ -178,14 +182,11 @@ input[type=file] { display:none; }
   <div class="sep"></div>
   <button class="btn btn-success" onclick="doSaveMaster()">💾 儲存主檔</button>
   <button class="btn btn-purple"  onclick="doRelease()">🚀 一鍵釋出</button>
-
   <span id="status">請匯入主檔，或使用「個別匯入」載入各章節</span>
 </div>
 
 <!-- ── Main ── -->
 <div id="main">
-
-  <!-- Sidebar -->
   <div id="sidebar">
     <div class="sb-section">主線</div>
     <div class="sb-item" id="sb-Chapter_0" onclick="setActive('Chapter_0')">📖 第零章<span class="sb-badge" id="badge-Chapter_0"></span></div>
@@ -200,9 +201,7 @@ input[type=file] { display:none; }
     <div class="sb-item" id="sb-flags" onclick="setActive('flags')">🏳 全域旗標</div>
   </div>
 
-  <!-- Content -->
   <div id="content">
-    <!-- Cytoscape canvas -->
     <div id="cy-wrap">
       <div id="cy"></div>
       <div id="empty-msg">
@@ -216,17 +215,17 @@ input[type=file] { display:none; }
         <div class="li"><div class="ld" style="background:#5a2da6"></div>選項分支 SE</div>
         <div class="li"><div class="ld" style="background:#4a3000"></div>條件分支 IF</div>
       </div>
-      <!-- Floating action buttons -->
+      <!-- rubber band overlay -->
+      <div id="rubberband"></div>
+      <!-- FAB -->
       <div id="fab" class="hidden">
         <button class="fab-btn fab-se"    onclick="addNewSE()">＋ SE</button>
         <button class="fab-btn fab-group" onclick="addNewGroup()">＋ Group</button>
       </div>
     </div>
-    <!-- Flags editor -->
     <div id="flags-wrap"></div>
   </div>
 
-  <!-- Right Panel -->
   <div id="panel">
     <div id="panel-resize"></div>
     <div id="ph">節點屬性</div>
@@ -253,6 +252,7 @@ const S = {
   ),
   globalFlags: [],
   extraFlags:  [],
+  posCache:    {},   // { chapterKey: { nodeId: {x,y} } }
   active: null,
   cy: null,
   sel: null,
@@ -260,29 +260,56 @@ const S = {
 };
 
 // ═══════════════════════════════════════════════════
+//  Position Cache Helpers
+// ═══════════════════════════════════════════════════
+function syncPosCache() {
+  if (!S.cy || !S.active || S.active==='flags' || S.active==='extra_flags') return;
+  const pos = {};
+  S.cy.nodes().forEach(n => { pos[n.id()] = { x: n.position('x'), y: n.position('y') }; });
+  S.posCache[S.active] = pos;
+}
+
+function applyPosToElements(els, key) {
+  const saved = S.posCache[key];
+  if (!saved) return false;  // no cache → caller should run layout
+  // Find a fallback center for new nodes
+  const vals = Object.values(saved);
+  const cx = vals.length ? vals.reduce((s,p)=>s+p.x,0)/vals.length : 400;
+  const cy = vals.length ? vals.reduce((s,p)=>s+p.y,0)/vals.length : 300;
+  let hasNew = false;
+  els.forEach(el => {
+    if (el.group !== 'nodes') return;
+    if (saved[el.data.id]) {
+      el.position = { x: saved[el.data.id].x, y: saved[el.data.id].y };
+    } else {
+      // New node: place near center with small random offset
+      el.position = { x: cx + (Math.random()-0.5)*120, y: cy + (Math.random()-0.5)*120 };
+      hasNew = true;
+    }
+  });
+  return true;  // used cached positions
+}
+
+// ═══════════════════════════════════════════════════
 //  Master File — Parser
 // ═══════════════════════════════════════════════════
 function parseMasterFile(text) {
   [...CH_KEYS, 'Extra'].forEach(k => { S.chapters[k] = { dialogue:{}, selection:{} }; });
-  S.globalFlags = [];
-  S.extraFlags  = [];
+  S.globalFlags = [];  S.extraFlags = [];
 
   let section='', subsect='', curGroup=null, curSE=null;
   const ch = () => (section && section !== 'flags') ? S.chapters[section] : null;
 
   for (const raw of text.split(/\r?\n/)) {
     const t = raw.trim();
-
-    if (t === '【Flags】')  { section='flags'; subsect=''; curGroup=null; curSE=null; continue; }
-    if (t === '【Extra】')  { section='Extra'; subsect=''; curGroup=null; curSE=null; continue; }
-
+    if (t==='【Flags】')  { section='flags'; subsect=''; curGroup=null; curSE=null; continue; }
+    if (t==='【Extra】')  { section='Extra'; subsect=''; curGroup=null; curSE=null; continue; }
     const chM = t.match(/^【(Chapter_\d+)】$/);
     if (chM && S.chapters[chM[1]]) { section=chM[1]; subsect=''; curGroup=null; curSE=null; continue; }
-
-    if (t === '【ExtraFlags】') { subsect='extraflags'; curGroup=null; curSE=null; continue; }
-    if (t === '【Dialogue】')   { subsect='dialogue';   curGroup=null; curSE=null; continue; }
-    if (t === '【Selection】')  { subsect='selection';  curGroup=null; curSE=null; continue; }
-    if (t === '【選擇】') continue;
+    if (t==='【ExtraFlags】') { subsect='extraflags'; curGroup=null; curSE=null; continue; }
+    if (t==='【Dialogue】')   { subsect='dialogue';   curGroup=null; curSE=null; continue; }
+    if (t==='【Selection】')  { subsect='selection';  curGroup=null; curSE=null; continue; }
+    if (t==='【選擇】') continue;
 
     const gM = t.match(/^【Group_(\d+)】$/);
     if (gM && subsect==='dialogue' && ch()) {
@@ -296,7 +323,6 @@ function parseMasterFile(text) {
       if (!ch().selection[curSE]) ch().selection[curSE]={id:curSE,rawLines:[]};
       continue;
     }
-
     if (section==='flags') {
       if (t && !t.startsWith('//')) { const m=t.match(/^([^:]+):(.*)$/); if(m) S.globalFlags.push({name:m[1].trim(),value:m[2].trim()}); }
       continue;
@@ -308,7 +334,6 @@ function parseMasterFile(text) {
     if (subsect==='dialogue' && curGroup!==null && ch()) ch().dialogue[curGroup].rawLines.push(raw);
     else if (subsect==='selection' && curSE!==null && ch()) ch().selection[curSE].rawLines.push(raw);
   }
-
   Object.values(S.chapters).forEach(c => {
     [c.dialogue,c.selection].forEach(dict => {
       Object.values(dict).forEach(g => {
@@ -333,7 +358,6 @@ function parseDialogue(text) {
   Object.values(groups).forEach(g => { while(g.rawLines.length&&!g.rawLines[g.rawLines.length-1].trim()) g.rawLines.pop(); });
   return groups;
 }
-
 function parseSelection(text) {
   const sets={};  let cur=null;
   for (const raw of text.split(/\r?\n/)) {
@@ -345,7 +369,6 @@ function parseSelection(text) {
   }
   return sets;
 }
-
 function parseFlags(text) {
   const result=[];
   for (const raw of text.split(/\r?\n/)) {
@@ -362,28 +385,16 @@ function parseFlags(text) {
 // ═══════════════════════════════════════════════════
 function generateMasterFile() {
   let out='';
-  out+='【Flags】\n';
-  S.globalFlags.forEach(f=>{out+=`${f.name}:${f.value}\n`;});
-  out+='\n';
-
+  out+='【Flags】\n'; S.globalFlags.forEach(f=>{out+=`${f.name}:${f.value}\n`;}); out+='\n';
   CH_KEYS.forEach(key=>{
-    const c=S.chapters[key];
-    out+=`【${key}】\n`;
+    const c=S.chapters[key]; out+=`【${key}】\n`;
     const dIds=numSort(c.dialogue);
-    if (dIds.length) {
-      out+='【Dialogue】\n';
-      dIds.forEach(id=>{out+=`【Group_${id}】\n${c.dialogue[id].rawLines.join('\n')}\n\n`;});
-    }
+    if (dIds.length) { out+='【Dialogue】\n'; dIds.forEach(id=>{out+=`【Group_${id}】\n${c.dialogue[id].rawLines.join('\n')}\n\n`;}); }
     const sIds=numSort(c.selection);
-    if (sIds.length) {
-      out+='【Selection】\n';
-      sIds.forEach(id=>{out+=`【SE_${id}】\n${c.selection[id].rawLines.join('\n')}\n`;});
-    }
+    if (sIds.length) { out+='【Selection】\n'; sIds.forEach(id=>{out+=`【SE_${id}】\n${c.selection[id].rawLines.join('\n')}\n`;}); }
     out+='\n';
   });
-
-  const ex=S.chapters['Extra'];
-  out+='【Extra】\n';
+  const ex=S.chapters['Extra']; out+='【Extra】\n';
   if (S.extraFlags.length) { out+='【ExtraFlags】\n'; S.extraFlags.forEach(f=>{out+=`${f.name}:${f.value}\n`;}); out+='\n'; }
   const exDIds=numSort(ex.dialogue);
   if (exDIds.length) { out+='【Dialogue】\n'; exDIds.forEach(id=>{out+=`【Group_${id}】\n${ex.dialogue[id].rawLines.join('\n')}\n\n`;}); }
@@ -391,18 +402,9 @@ function generateMasterFile() {
   if (exSIds.length) { out+='【Selection】\n'; exSIds.forEach(id=>{out+=`【SE_${id}】\n${ex.selection[id].rawLines.join('\n')}\n`;}); }
   return out;
 }
-
-function genDialogue(dialogue) {
-  let out='';
-  numSort(dialogue).forEach(id=>{out+=`【Group_${id}】\n${dialogue[id].rawLines.join('\n')}\n\n`;});
-  return out.trimEnd()+'\n';
-}
-function genSelection(selection) {
-  let out='【選擇】\n';
-  numSort(selection).forEach(id=>{out+=`【SE_${id}】\n${selection[id].rawLines.join('\n')}\n`;});
-  return out;
-}
-function genFlags(flags) { return flags.map(f=>`${f.name}:${f.value}`).join('\n')+'\n'; }
+function genDialogue(d){ let o=''; numSort(d).forEach(id=>{o+=`【Group_${id}】\n${d[id].rawLines.join('\n')}\n\n`;}); return o.trimEnd()+'\n'; }
+function genSelection(s){ let o='【選擇】\n'; numSort(s).forEach(id=>{o+=`【SE_${id}】\n${s[id].rawLines.join('\n')}\n`;}); return o; }
+function genFlags(f){ return f.map(x=>`${x.name}:${x.value}`).join('\n')+'\n'; }
 
 // ═══════════════════════════════════════════════════
 //  Graph Analysis Helpers
@@ -422,43 +424,87 @@ function edgesFromGroup(rawLines) {
   }
   return {jumps:[...jumps],sels:[...sels],conds,battleId,sceneId};
 }
-
 function optionsFromSE(rawLines) {
   const opts=[];
   for (const line of rawLines) {
     const t=line.trim();
     if (!t.startsWith('Buttonset')||t.endsWith('null')) continue;
-    const parts=t.split(':');
-    if (parts.length<3) continue;
+    const parts=t.split(':'); if(parts.length<3) continue;
     const gm=parts.slice(2).join(':').match(/\{G_(\d+)\}/);
     if (gm) opts.push({label:parts[1].trim(),target:+gm[1]});
   }
   return opts;
 }
-
 function groupPreview(rawLines) {
-  for (const l of rawLines) {
-    const t=l.trim();
-    if (t&&!t.startsWith('{')&&!t.startsWith('【')&&!t.startsWith('//')) return t.substring(0,38);
-  }
+  for (const l of rawLines) { const t=l.trim(); if(t&&!t.startsWith('{')&&!t.startsWith('【')&&!t.startsWith('//')) return t.substring(0,38); }
   for (const l of rawLines) { const t=l.trim(); if(t.startsWith('{')) return t.substring(0,38); }
   return '（空）';
 }
 function sePreview(rawLines) {
-  return rawLines.map(l=>l.trim())
-    .filter(l=>l.startsWith('Buttonset')&&!l.includes('null'))
+  return rawLines.map(l=>l.trim()).filter(l=>l.startsWith('Buttonset')&&!l.includes('null'))
     .map(l=>{ const p=l.split(':'); return p.length>=2?p[1].trim():''; })
     .filter(Boolean).slice(0,3).join(' / ').substring(0,44)||'（空）';
 }
 function calcNtype(rawLines) {
-  const info=edgesFromGroup(rawLines);
-  if (info.battleId) return 'battle';
-  if (info.sceneId!==null) return 'scene';
+  const i=edgesFromGroup(rawLines);
+  if (i.battleId) return 'battle';
+  if (i.sceneId!==null) return 'scene';
   return 'group';
 }
 
 // ═══════════════════════════════════════════════════
-//  Cytoscape
+//  Build Cytoscape Elements
+// ═══════════════════════════════════════════════════
+function buildElements(key) {
+  const c=S.chapters[key]; if(!c) return [];
+  const {dialogue,selection}=c;
+  const nodes=[], edges=[];
+  let ei=0;
+
+  // All Group nodes
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k;
+    nodes.push({group:'nodes', data:{id:`Group_${id}`, label:`Group ${id}\n${groupPreview(g.rawLines)}`, ntype:calcNtype(g.rawLines)}});
+  }
+  // All SE nodes
+  for (const [k,se] of Object.entries(selection)) {
+    const id=+k;
+    nodes.push({group:'nodes', data:{id:`SE_${id}`, label:`SE ${id}\n${sePreview(se.rawLines)}`, ntype:'se'}});
+  }
+  // Cond nodes
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k, info=edgesFromGroup(g.rawLines);
+    info.conds.forEach((c,ci)=>{
+      nodes.push({group:'nodes', data:{id:`Cond_${id}_${ci}`, label:`IF\n${c.cond}`, ntype:'cond'}});
+    });
+  }
+
+  const nodeIds=new Set(nodes.map(n=>n.data.id));
+  const addEdge=(src,tgt,lbl='')=>{ if(nodeIds.has(tgt)) edges.push({group:'edges',data:{id:`e${ei++}`,source:src,target:tgt,label:lbl}}); };
+
+  // Group edges
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k, info=edgesFromGroup(g.rawLines);
+    for (const t of info.jumps) if(dialogue[t]) addEdge(`Group_${id}`,`Group_${t}`);
+    for (const s of info.sels) addEdge(`Group_${id}`,`SE_${s}`,'選項');
+    info.conds.forEach((c,ci)=>{
+      const cn=`Cond_${id}_${ci}`;
+      addEdge(`Group_${id}`,cn);
+      if(dialogue[c.tG]) addEdge(cn,`Group_${c.tG}`,'TRUE');
+      if(dialogue[c.fG]) addEdge(cn,`Group_${c.fG}`,'FALSE');
+    });
+  }
+  // SE edges
+  for (const [k,se] of Object.entries(selection)) {
+    const id=+k;
+    for (const opt of optionsFromSE(se.rawLines))
+      if(dialogue[opt.target]) addEdge(`SE_${id}`,`Group_${opt.target}`,opt.label.substring(0,12));
+  }
+  return [...nodes,...edges];
+}
+
+// ═══════════════════════════════════════════════════
+//  Cytoscape Style
 // ═══════════════════════════════════════════════════
 const CY_STYLE = [
   { selector:'node[ntype="group"]', style:{
@@ -503,122 +549,162 @@ const CY_STYLE = [
   { selector:'edge[label="選項"]',  style:{'line-color':'#a371f7','target-arrow-color':'#a371f7','line-style':'dashed'}},
 ];
 
-function buildElements(key) {
-  const c=S.chapters[key]; if(!c) return [];
-  const {dialogue,selection}=c;
-  const els=[]; let ei=0;
-  const addEdge=(src,tgt,lbl='')=>{
-    if (!els.some(e=>e.group==='nodes'&&e.data.id===tgt)) return; // target node must exist
-    els.push({group:'edges',data:{id:`e${ei++}`,source:src,target:tgt,label:lbl}});
-  };
+// cose layout with stronger anti-overlap
+const COSE_LAYOUT = {
+  name: 'cose',
+  animate: false,
+  randomize: true,
+  nodeRepulsion: 14000,
+  nodeOverlap: 40,
+  idealEdgeLength: 160,
+  edgeElasticity: 100,
+  gravity: 30,
+  numIter: 1500,
+  coolingFactor: 0.95,
+  padding: 70
+};
 
-  for (const [k,g] of Object.entries(dialogue)) {
-    const id=+k, info=edgesFromGroup(g.rawLines);
-    const ntype=calcNtype(g.rawLines);
-    els.push({group:'nodes',data:{id:`Group_${id}`,label:`Group ${id}\n${groupPreview(g.rawLines)}`,ntype}});
-    for (const t of info.jumps) if(dialogue[t]) addEdge(`Group_${id}`,`Group_${t}`);
-    for (const s of info.sels) addEdge(`Group_${id}`,`SE_${s}`,'選項');
-    info.conds.forEach((c,ci)=>{
-      const cn=`Cond_${id}_${ci}`;
-      els.push({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'}});
-      addEdge(`Group_${id}`,cn);
-    });
-  }
-  // Add SE nodes first so addEdge checks pass
-  for (const [k,se] of Object.entries(selection)) {
-    const id=+k;
-    els.push({group:'nodes',data:{id:`SE_${id}`,label:`SE ${id}\n${sePreview(se.rawLines)}`,ntype:'se'}});
-  }
-  // Cond→Group edges (added after all nodes exist)
-  const condEdges=[];
-  for (const [k,g] of Object.entries(dialogue)) {
-    const id=+k, info=edgesFromGroup(g.rawLines);
-    info.conds.forEach((c,ci)=>{
-      const cn=`Cond_${id}_${ci}`;
-      if(dialogue[c.tG]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:cn,target:`Group_${c.tG}`,label:'TRUE'}});
-      if(dialogue[c.fG]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:cn,target:`Group_${c.fG}`,label:'FALSE'}});
-    });
-  }
-  // SE→Group edges
-  for (const [k,se] of Object.entries(selection)) {
-    const id=+k;
-    for (const opt of optionsFromSE(se.rawLines))
-      if(dialogue[opt.target]) condEdges.push({group:'edges',data:{id:`e${ei++}`,source:`SE_${id}`,target:`Group_${opt.target}`,label:opt.label.substring(0,12)}});
-  }
-  return [...els,...condEdges];
-}
-
-function initCy(els) {
-  if (S.cy){S.cy.destroy();S.cy=null;}
-  document.getElementById('empty-msg').style.display=els.length?'none':'flex';
+// ═══════════════════════════════════════════════════
+//  Cytoscape Init
+// ═══════════════════════════════════════════════════
+function initCy(els, usePreset) {
+  if (S.cy) { S.cy.destroy(); S.cy=null; }
+  document.getElementById('empty-msg').style.display = els.length?'none':'flex';
   if (!els.length) return;
-  S.cy=cytoscape({
-    container:document.getElementById('cy'),
-    elements:els,
-    style:CY_STYLE,
-    layout:{name:'cose',animate:false,nodeRepulsion:8000,padding:50,idealEdgeLength:120}
+
+  const layout = usePreset ? { name:'preset' } : COSE_LAYOUT;
+
+  S.cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: els,
+    style: CY_STYLE,
+    layout,
+    // allow multi-node grabbing
+    boxSelectionEnabled: false,
+    selectionType: 'single'   // we handle multi-select ourselves via rubber band
   });
-  S.cy.on('tap','node',e=>{S.sel=e.target.id();renderPanel();});
-  S.cy.on('tap',       e=>{if(e.target===S.cy){S.sel=null;renderPanel();}});
+
+  S.cy.on('tap','node', e => {
+    S.sel = e.target.id();
+    renderPanel();
+  });
+  S.cy.on('tap', e => {
+    if (e.target === S.cy) { S.sel=null; S.cy.elements().unselect(); renderPanel(); }
+  });
+  // Save positions whenever nodes are dragged
+  S.cy.on('dragfree','node', syncPosCache);
 }
 
 function doLayout() {
-  if(!S.cy)return;
-  S.cy.layout({name:'cose',animate:true,nodeRepulsion:8000,padding:50,idealEdgeLength:120}).run();
+  if (!S.cy) return;
+  // Clear cache for current chapter so next refresh will re-run layout
+  delete S.posCache[S.active];
+  S.cy.layout(COSE_LAYOUT).run();
+  // Save positions after layout completes (animate:false → synchronous)
+  syncPosCache();
 }
-function cyFit(){if(S.cy)S.cy.fit();}
+function cyFit(){ if(S.cy) S.cy.fit(); }
 
+// ═══════════════════════════════════════════════════
+//  Refresh Graph (position-aware)
+// ═══════════════════════════════════════════════════
 function refreshGraph() {
-  if(!S.active||S.active==='flags'||S.active==='extra_flags') return;
-  initCy(buildElements(S.active));
+  if (!S.active||S.active==='flags'||S.active==='extra_flags') return;
+  const key=S.active;
+  const els=buildElements(key);
+
+  const hasCached = applyPosToElements(els, key);
+  initCy(els, hasCached);   // preset if cached, cose otherwise
+  syncPosCache();            // write back (captures layout result or preset)
   updateBadges();
 }
 
-// ── In-place graph update after node edit ──────────────────
-// (called by saveEdit – does NOT re-run layout)
-function updateGroupInCy(gId, lines, dialogue) {
-  if(!S.cy) return;
-  const node=S.cy.getElementById(`Group_${gId}`);
-  if(!node.length) return;
+// Recalculate ONLY edges for current chapter, keeping node positions intact
+// Called when edge connections may have changed but layout should not move
+function refreshEdgesOnly() {
+  if (!S.cy || !S.active || S.active==='flags' || S.active==='extra_flags') return;
+  const key=S.active;
+  const c=S.chapters[key];
 
-  const info=edgesFromGroup(lines);
-  const ntype=calcNtype(lines);
-  node.data('label',`Group ${gId}\n${groupPreview(lines)}`);
-  node.data('ntype',ntype);
+  // Remove all edges and cond nodes, then re-add based on current data
+  S.cy.edges().remove();
+  S.cy.nodes().filter(n=>n.id().startsWith('Cond_')).remove();
 
-  // Remove outgoing edges + old cond children
-  S.cy.edges(`[source="Group_${gId}"]`).remove();
-  S.cy.nodes().filter(n=>n.id().startsWith(`Cond_${gId}_`)).remove();
-
-  const uid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const {dialogue,selection}=c;
+  let ei=0;
+  const uid=()=>`er_${ei++}_${Date.now()}`;
+  const nodeIds=new Set(S.cy.nodes().map(n=>n.id()));
   const addE=(src,tgt,lbl='')=>{
-    if(!S.cy.getElementById(tgt).length) return;
+    if(!nodeIds.has(tgt)) return;
     S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl}});
   };
 
+  for (const [k,g] of Object.entries(dialogue)) {
+    const id=+k, info=edgesFromGroup(g.rawLines);
+    // Also update ntype/label in case content changed
+    const node=S.cy.getElementById(`Group_${id}`);
+    if (node.length) {
+      node.data('label',`Group ${id}\n${groupPreview(g.rawLines)}`);
+      node.data('ntype',calcNtype(g.rawLines));
+    }
+    for (const t of info.jumps) if(dialogue[t]) addE(`Group_${id}`,`Group_${t}`);
+    for (const s of info.sels) addE(`Group_${id}`,`SE_${s}`,'選項');
+    info.conds.forEach((c,ci)=>{
+      const cn=`Cond_${id}_${ci}`;
+      if (!S.cy.getElementById(cn).length) {
+        const srcNode=S.cy.getElementById(`Group_${id}`);
+        const px=srcNode.length?srcNode.position('x')+100:400;
+        const py=srcNode.length?srcNode.position('y')+80:300;
+        S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:{x:px,y:py}});
+        nodeIds.add(cn);
+      }
+      addE(`Group_${id}`,cn);
+      if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,'TRUE');
+      if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'FALSE');
+    });
+  }
+  for (const [k,se] of Object.entries(selection)) {
+    const id=+k;
+    const node=S.cy.getElementById(`SE_${id}`);
+    if (node.length) node.data('label',`SE ${id}\n${sePreview(se.rawLines)}`);
+    for (const opt of optionsFromSE(se.rawLines))
+      if(dialogue[opt.target]) addE(`SE_${id}`,`Group_${opt.target}`,opt.label.substring(0,12));
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  In-Place Node Update (save without layout)
+// ═══════════════════════════════════════════════════
+function updateGroupInCy(gId, lines, dialogue) {
+  if(!S.cy) return;
+  const node=S.cy.getElementById(`Group_${gId}`); if(!node.length) return;
+  const info=edgesFromGroup(lines);
+  node.data('label',`Group ${gId}\n${groupPreview(lines)}`);
+  node.data('ntype',calcNtype(lines));
+  // Remove outgoing edges + old cond children
+  S.cy.edges(`[source="Group_${gId}"]`).remove();
+  S.cy.nodes().filter(n=>n.id().startsWith(`Cond_${gId}_`)).remove();
+  const uid=()=>`eu_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  const addE=(src,tgt,lbl='')=>{ if(S.cy.getElementById(tgt).length) S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl}}); };
   for (const t of info.jumps) if(dialogue[t]) addE(`Group_${gId}`,`Group_${t}`);
   for (const s of info.sels) addE(`Group_${gId}`,`SE_${s}`,'選項');
   info.conds.forEach((c,ci)=>{
     const cn=`Cond_${gId}_${ci}`;
-    const nodePos={x:node.position('x')+100,y:node.position('y')+80};
-    S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:nodePos});
+    S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:{x:node.position('x')+100,y:node.position('y')+80}});
     addE(`Group_${gId}`,cn);
     if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,'TRUE');
     if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'FALSE');
   });
 }
-
 function updateSEInCy(sId, lines, dialogue) {
   if(!S.cy) return;
-  const node=S.cy.getElementById(`SE_${sId}`);
-  if(!node.length) return;
+  const node=S.cy.getElementById(`SE_${sId}`); if(!node.length) return;
   node.data('label',`SE ${sId}\n${sePreview(lines)}`);
   S.cy.edges(`[source="SE_${sId}"]`).remove();
-  const uid=()=>`e_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
-  for (const opt of optionsFromSE(lines)) {
+  const uid=()=>`eu_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+  for (const opt of optionsFromSE(lines))
     if(S.cy.getElementById(`Group_${opt.target}`).length)
       S.cy.add({group:'edges',data:{id:uid(),source:`SE_${sId}`,target:`Group_${opt.target}`,label:opt.label.substring(0,12)}});
-  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -645,28 +731,20 @@ function renderPanel() {
     if(info.battleId) html+=`<div class="fl">戰鬥 ID</div><div class="fv">${info.battleId}</div>`;
     const links=[...info.jumps.map(j=>`Group_${j}`),...info.sels.map(s=>`SE_${s}`),...info.conds.flatMap(c=>[`Group_${c.tG}`,`Group_${c.fG}`])];
     if(links.length) html+=`<div class="fl">連結</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
-    html+=`<div class="fl">內容（直接編輯，儲存後圖形更新但不移動節點）</div>`;
-    html+=`<textarea id="node-editor">${esc(g.rawLines.join('\n'))}</textarea>`;
-
+    html+=`<div class="fl">內容</div><textarea id="node-editor">${esc(g.rawLines.join('\n'))}</textarea>`;
   } else if (id.startsWith('SE_')) {
     const sId=+id.replace('SE_','');
     const se=c.selection[sId]; if(!se) return;
     const opts=optionsFromSE(se.rawLines);
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
     html+=`<div class="fl">SE ID</div><div class="fv">${sId}</div>`;
-    if(opts.length){
-      html+=`<div class="fl">選項 (${opts.length})</div>`;
-      opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)} → Group_${o.target}</div>`;});
-    }
-    html+=`<div class="fl">內容（直接編輯）</div>`;
-    html+=`<textarea id="node-editor">${esc(se.rawLines.join('\n'))}</textarea>`;
-
+    if(opts.length){ html+=`<div class="fl">選項 (${opts.length})</div>`; opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)} → Group_${o.target}</div>`;}); }
+    html+=`<div class="fl">內容</div><textarea id="node-editor">${esc(se.rawLines.join('\n'))}</textarea>`;
   } else if (id.startsWith('Cond_')) {
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
-    html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由所屬 Group 的<br><code>{IF_flag:G_true:G_false}</code><br>指令產生，請編輯對應 Group</div>`;
+    html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由 Group 的<br><code>{IF_flag:G_true:G_false}</code><br>產生，請編輯對應 Group</div>`;
     pc.innerHTML=html; pa.style.display='none'; return;
   }
-
   pc.innerHTML=html;
   pa.style.display='flex';
 }
@@ -674,93 +752,69 @@ function renderPanel() {
 function saveEdit() {
   const ed=document.getElementById('node-editor');
   if(!ed||!S.sel||!S.active) return;
-  const c=S.chapters[S.active];
-  const lines=ed.value.split('\n');
-
+  const c=S.chapters[S.active], lines=ed.value.split('\n');
   if (S.sel.startsWith('Group_')) {
     const gId=+S.sel.replace('Group_','');
     if(!c.dialogue[gId]) return;
     c.dialogue[gId].rawLines=lines;
-    updateGroupInCy(gId, lines, c.dialogue); // in-place, no re-layout
+    updateGroupInCy(gId,lines,c.dialogue);
   } else if (S.sel.startsWith('SE_')) {
     const sId=+S.sel.replace('SE_','');
     if(!c.selection[sId]) return;
     c.selection[sId].rawLines=lines;
-    updateSEInCy(sId, lines, c.dialogue);    // in-place, no re-layout
+    updateSEInCy(sId,lines,c.dialogue);
   }
-
-  renderPanel();  // refresh info in panel
+  syncPosCache();   // save updated positions (cond nodes may have moved)
+  renderPanel();
   setStatus('已儲存');
 }
-
-function deselNode(){S.sel=null;renderPanel();if(S.cy)S.cy.elements().unselect();}
+function deselNode(){ S.sel=null; renderPanel(); if(S.cy) S.cy.elements().unselect(); }
 
 // ═══════════════════════════════════════════════════
 //  Add New Nodes (FAB)
 // ═══════════════════════════════════════════════════
-function nextGroupId() {
-  const ids=Object.keys(S.chapters[S.active].dialogue).map(Number);
-  return ids.length ? Math.max(...ids)+1 : 0;
-}
-function nextSEId() {
-  const ids=Object.keys(S.chapters[S.active].selection).map(Number);
-  return ids.length ? Math.max(...ids)+1 : 0;
-}
-function centerPos() {
+function nextGroupId(){ const ids=Object.keys(S.chapters[S.active].dialogue).map(Number); return ids.length?Math.max(...ids)+1:0; }
+function nextSEId(){    const ids=Object.keys(S.chapters[S.active].selection).map(Number); return ids.length?Math.max(...ids)+1:0; }
+function centerPos(){
   if(!S.cy) return {x:200,y:200};
-  const cont=S.cy.container();
-  const pan=S.cy.pan(), zoom=S.cy.zoom();
-  return {
-    x:(cont.offsetWidth/2  - pan.x)/zoom,
-    y:(cont.offsetHeight/2 - pan.y)/zoom
-  };
+  const c=S.cy.container(), pan=S.cy.pan(), zoom=S.cy.zoom();
+  return {x:(c.offsetWidth/2-pan.x)/zoom, y:(c.offsetHeight/2-pan.y)/zoom};
 }
 
-function addNewGroup() {
+function addNewGroup(){
   if(!S.active||S.active==='flags'||S.active==='extra_flags'){alert('請先選擇一個章節');return;}
   const id=nextGroupId();
   const template=['你：（...）','{G_???}'];
   S.chapters[S.active].dialogue[id]={id,rawLines:template};
-
-  if(!S.cy) {
-    // First node in chapter — initialize cytoscape
-    refreshGraph();
-    setTimeout(()=>{if(S.cy){S.cy.getElementById(`Group_${id}`).select();S.sel=`Group_${id}`;renderPanel();}},80);
-  } else {
+  if(!S.cy){ refreshGraph(); setTimeout(()=>{if(S.cy){S.cy.getElementById(`Group_${id}`).select();S.sel=`Group_${id}`;renderPanel();}},80); }
+  else {
     const pos=centerPos();
     S.cy.add({group:'nodes',data:{id:`Group_${id}`,label:`Group ${id}\n${groupPreview(template)}`,ntype:'group'},position:pos});
-    S.cy.getElementById(`Group_${id}`).select();
-    S.sel=`Group_${id}`;
-    renderPanel();
+    S.cy.getElementById(`Group_${id}`).select(); S.sel=`Group_${id}`; renderPanel(); syncPosCache();
   }
-  updateBadges();
-  setStatus(`已新增 Group_${id}（${S.active}）`);
+  updateBadges(); setStatus(`已新增 Group_${id}（${S.active}）`);
 }
-
-function addNewSE() {
+function addNewSE(){
   if(!S.active||S.active==='flags'||S.active==='extra_flags'){alert('請先選擇一個章節');return;}
   const id=nextSEId();
   const template=['Buttonset_0:選項一:{G_???}','Buttonset_1:選項二:{G_???}'];
   S.chapters[S.active].selection[id]={id,rawLines:template};
-
-  if(!S.cy) {
-    refreshGraph();
-    setTimeout(()=>{if(S.cy){S.cy.getElementById(`SE_${id}`).select();S.sel=`SE_${id}`;renderPanel();}},80);
-  } else {
+  if(!S.cy){ refreshGraph(); setTimeout(()=>{if(S.cy){S.cy.getElementById(`SE_${id}`).select();S.sel=`SE_${id}`;renderPanel();}},80); }
+  else {
     const pos=centerPos();
     S.cy.add({group:'nodes',data:{id:`SE_${id}`,label:`SE ${id}\n${sePreview(template)}`,ntype:'se'},position:pos});
-    S.cy.getElementById(`SE_${id}`).select();
-    S.sel=`SE_${id}`;
-    renderPanel();
+    S.cy.getElementById(`SE_${id}`).select(); S.sel=`SE_${id}`; renderPanel(); syncPosCache();
   }
-  updateBadges();
-  setStatus(`已新增 SE_${id}（${S.active}）`);
+  updateBadges(); setStatus(`已新增 SE_${id}（${S.active}）`);
 }
 
 // ═══════════════════════════════════════════════════
 //  Sidebar Navigation
 // ═══════════════════════════════════════════════════
 function setActive(key) {
+  // Save positions of current chapter before leaving
+  syncPosCache();
+
   S.active=key; S.sel=null;
   document.querySelectorAll('.sb-item').forEach(el=>el.classList.remove('active'));
   const sbEl=document.getElementById(`sb-${key}`);
@@ -772,17 +826,14 @@ function setActive(key) {
   const isFlags=(key==='flags'||key==='extra_flags');
 
   if(isFlags){
-    cyWrap.style.display='none';
-    fwrap.classList.add('visible');
-    fab.classList.add('hidden');
+    cyWrap.style.display='none'; fwrap.classList.add('visible'); fab.classList.add('hidden');
     if(S.cy){S.cy.destroy();S.cy=null;}
-    renderFlagsPanel(key);
-    renderPanel();
+    renderFlagsPanel(key); renderPanel();
   } else {
-    cyWrap.style.display='';
-    fwrap.classList.remove('visible');
-    fab.classList.remove('hidden');
-    refreshGraph();
+    cyWrap.style.display=''; fwrap.classList.remove('visible'); fab.classList.remove('hidden');
+    refreshGraph();   // uses posCache if available, otherwise runs layout
+    // Refresh edges to reflect latest data (handles re-entry after edits)
+    if (S.cy) refreshEdgesOnly();
     renderPanel();
   }
 }
@@ -790,40 +841,29 @@ function setActive(key) {
 // ═══════════════════════════════════════════════════
 //  Flags Editor
 // ═══════════════════════════════════════════════════
-function renderFlagsPanel(key) {
+function renderFlagsPanel(key){
   const wrap=document.getElementById('flags-wrap');
   const flags=key==='flags'?S.globalFlags:S.extraFlags;
   const label=key==='flags'?'全域旗標  (GlobalFlags.txt)':'支線旗標  (Extra_Flags.txt)';
   let html=`<div class="flags-title">🏳 ${label}</div>`;
   html+=`<table class="flags-table"><thead><tr><th>旗標名稱</th><th>初始值</th><th></th></tr></thead><tbody>`;
   flags.forEach((f,i)=>{
-    html+=`<tr>
-      <td><input class="flag-name" value="${esc(f.name)}"  onchange="updateFlag('${key}',${i},'name',this.value)"></td>
-      <td><input class="flag-val"  value="${esc(f.value)}" onchange="updateFlag('${key}',${i},'value',this.value)"></td>
-      <td><button class="flag-del" onclick="deleteFlag('${key}',${i})">✕</button></td>
-    </tr>`;
+    html+=`<tr><td><input class="flag-name" value="${esc(f.name)}" onchange="updateFlag('${key}',${i},'name',this.value)"></td><td><input class="flag-val" value="${esc(f.value)}" onchange="updateFlag('${key}',${i},'value',this.value)"></td><td><button class="flag-del" onclick="deleteFlag('${key}',${i})">✕</button></td></tr>`;
   });
-  html+=`</tbody></table>`;
-  html+=`<div class="flags-add">
-    <input class="fadd-input" id="fn-name" placeholder="旗標名稱" style="width:220px">
-    <input class="fadd-input" id="fn-val"  placeholder="初始值"   style="width:80px">
-    <button class="btn btn-secondary" onclick="addFlag('${key}')">＋ 新增</button>
-  </div>`;
+  html+=`</tbody></table><div class="flags-add"><input class="fadd-input" id="fn-name" placeholder="旗標名稱" style="width:220px"><input class="fadd-input" id="fn-val" placeholder="初始值" style="width:80px"><button class="btn btn-secondary" onclick="addFlag('${key}')">＋ 新增</button></div>`;
   wrap.innerHTML=html;
 }
-
-function updateFlag(key,idx,field,val){(key==='flags'?S.globalFlags:S.extraFlags)[idx][field]=val;}
-function deleteFlag(key,idx){(key==='flags'?S.globalFlags:S.extraFlags).splice(idx,1);renderFlagsPanel(key);}
+function updateFlag(key,idx,field,val){ (key==='flags'?S.globalFlags:S.extraFlags)[idx][field]=val; }
+function deleteFlag(key,idx){ (key==='flags'?S.globalFlags:S.extraFlags).splice(idx,1); renderFlagsPanel(key); }
 function addFlag(key){
   const name=document.getElementById('fn-name').value.trim();
   const val=document.getElementById('fn-val').value.trim()||'0';
   if(!name){document.getElementById('fn-name').focus();return;}
-  (key==='flags'?S.globalFlags:S.extraFlags).push({name,value:val});
-  renderFlagsPanel(key);
+  (key==='flags'?S.globalFlags:S.extraFlags).push({name,value:val}); renderFlagsPanel(key);
 }
 
 // ═══════════════════════════════════════════════════
-//  Import — Master File
+//  Import — Master
 // ═══════════════════════════════════════════════════
 function triggerImportMaster(){document.getElementById('fi-master').click();}
 function onImportMaster(e){
@@ -831,13 +871,10 @@ function onImportMaster(e){
   S.masterFile=f.name;
   const r=new FileReader();
   r.onload=ev=>{
+    S.posCache={};  // clear position cache on full import
     parseMasterFile(ev.target.result);
-    updateBadges();
-    setStatus(`已載入主檔：${f.name}`);
-    const firstKey=[...CH_KEYS,'Extra'].find(k=>{
-      const c=S.chapters[k];
-      return Object.keys(c.dialogue).length||Object.keys(c.selection).length;
-    });
+    updateBadges(); setStatus(`已載入主檔：${f.name}`);
+    const firstKey=[...CH_KEYS,'Extra'].find(k=>{ const c=S.chapters[k]; return Object.keys(c.dialogue).length||Object.keys(c.selection).length; });
     if(firstKey) setActive(firstKey);
     else if(S.globalFlags.length) setActive('flags');
   };
@@ -845,7 +882,7 @@ function onImportMaster(e){
 }
 
 // ═══════════════════════════════════════════════════
-//  Import — Individual Files
+//  Import — Individual
 // ═══════════════════════════════════════════════════
 const IND_INPUT={d:'fi-d',s:'fi-s',ed:'fi-ed',es:'fi-es',gf:'fi-gf',ef:'fi-ef'};
 function trigInd(t){document.getElementById(IND_INPUT[t]).click();}
@@ -855,10 +892,10 @@ function onInd(type,e){
   r.onload=ev=>{
     const txt=ev.target.result;
     const tKey=S.active&&S.active!=='flags'&&S.active!=='extra_flags'?S.active:'Chapter_0';
-    if(type==='d'){S.chapters[tKey].dialogue=parseDialogue(txt);setStatus(`Dialogue → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
-    else if(type==='s'){S.chapters[tKey].selection=parseSelection(txt);setStatus(`Selection → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
-    else if(type==='ed'){S.chapters['Extra'].dialogue=parseDialogue(txt);setStatus('Extra_Dialogue 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
-    else if(type==='es'){S.chapters['Extra'].selection=parseSelection(txt);setStatus('Extra_Selection 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
+    if(type==='d'){S.chapters[tKey].dialogue=parseDialogue(txt);delete S.posCache[tKey];setStatus(`Dialogue → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
+    else if(type==='s'){S.chapters[tKey].selection=parseSelection(txt);setStatus(`Selection → ${tKey}`);updateBadges();if(S.active===tKey&&S.cy)refreshEdgesOnly();}
+    else if(type==='ed'){S.chapters['Extra'].dialogue=parseDialogue(txt);delete S.posCache['Extra'];setStatus('Extra_Dialogue 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
+    else if(type==='es'){S.chapters['Extra'].selection=parseSelection(txt);setStatus('Extra_Selection 已載入');updateBadges();if(S.active==='Extra'&&S.cy)refreshEdgesOnly();}
     else if(type==='gf'){S.globalFlags=parseFlags(txt);setStatus('GlobalFlags 已載入');if(S.active==='flags')renderFlagsPanel('flags');}
     else if(type==='ef'){S.extraFlags=parseFlags(txt);setStatus('Extra_Flags 已載入');if(S.active==='extra_flags')renderFlagsPanel('extra_flags');}
   };
@@ -868,10 +905,9 @@ function onInd(type,e){
 // ═══════════════════════════════════════════════════
 //  Export
 // ═══════════════════════════════════════════════════
-function doSaveMaster(){download(generateMasterFile(),S.masterFile);setStatus('主檔已下載：'+S.masterFile);}
-
+function doSaveMaster(){ download(generateMasterFile(),S.masterFile); setStatus('主檔已下載：'+S.masterFile); }
 async function doRelease(){
-  if(typeof JSZip==='undefined'){alert('JSZip 尚未載入，請確認網路連線後重試');return;}
+  if(typeof JSZip==='undefined'){alert('JSZip 尚未載入，請確認網路連線');return;}
   const zip=new JSZip();
   if(S.globalFlags.length) zip.file('Flags/GlobalFlags.txt',genFlags(S.globalFlags));
   CH_KEYS.forEach(key=>{
@@ -884,45 +920,108 @@ async function doRelease(){
   if(Object.keys(ex.selection).length) zip.file('Extra/Extra_Selection.txt',genSelection(ex.selection));
   if(S.extraFlags.length)              zip.file('Extra/Extra_Flags.txt',genFlags(S.extraFlags));
   const blob=await zip.generateAsync({type:'blob'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
   setStatus('release.zip 已下載');
 }
 
 // ═══════════════════════════════════════════════════
-//  Panel Resize (drag left edge)
+//  Rubber Band Multi-Select (right-click drag)
+// ═══════════════════════════════════════════════════
+function initRubberBand(){
+  const wrap=document.getElementById('cy-wrap');
+  const rb=document.getElementById('rubberband');
+  let active=false, startX=0, startY=0, hasMoved=false;
+
+  // Block context menu on the canvas area
+  wrap.addEventListener('contextmenu', e=>{ e.preventDefault(); });
+
+  wrap.addEventListener('mousedown', e=>{
+    if(e.button!==2) return;
+    if(!S.cy) return;
+    e.preventDefault();
+    const rect=wrap.getBoundingClientRect();
+    startX=e.clientX-rect.left;
+    startY=e.clientY-rect.top;
+    active=true; hasMoved=false;
+    rb.style.left=startX+'px'; rb.style.top=startY+'px';
+    rb.style.width='0'; rb.style.height='0'; rb.style.display='none';
+  });
+
+  document.addEventListener('mousemove', e=>{
+    if(!active||!S.cy) return;
+    const rect=wrap.getBoundingClientRect();
+    const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+    const dx=Math.abs(cx-startX), dy=Math.abs(cy-startY);
+    if(dx>4||dy>4){ hasMoved=true; }
+    if(hasMoved){
+      rb.style.display='block';
+      rb.style.left  =Math.min(startX,cx)+'px';
+      rb.style.top   =Math.min(startY,cy)+'px';
+      rb.style.width =Math.abs(cx-startX)+'px';
+      rb.style.height=Math.abs(cy-startY)+'px';
+    }
+  });
+
+  document.addEventListener('mouseup', e=>{
+    if(!active||e.button!==2) return;
+    active=false; rb.style.display='none';
+
+    if(!S.cy){ return; }
+
+    if(!hasMoved){
+      // plain right-click → deselect all
+      S.cy.elements().unselect(); S.sel=null; renderPanel(); return;
+    }
+
+    // Convert rubber band screen coords → cytoscape model coords
+    const rect=wrap.getBoundingClientRect();
+    const ex=e.clientX-rect.left, ey=e.clientY-rect.top;
+    const x1=Math.min(startX,ex), y1=Math.min(startY,ey);
+    const x2=Math.max(startX,ex), y2=Math.max(startY,ey);
+    const pan=S.cy.pan(), zoom=S.cy.zoom();
+    const toModel=(sx,sy)=>({x:(sx-pan.x)/zoom, y:(sy-pan.y)/zoom});
+    const tl=toModel(x1,y1), br=toModel(x2,y2);
+
+    S.cy.elements().unselect();
+    S.cy.nodes().forEach(node=>{
+      const p=node.position();
+      if(p.x>=tl.x&&p.x<=br.x&&p.y>=tl.y&&p.y<=br.y) node.select();
+    });
+    // Only show editor if exactly one node selected
+    const sel=S.cy.nodes(':selected');
+    S.sel = sel.length===1 ? sel[0].id() : null;
+    renderPanel();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  Panel Resize
 // ═══════════════════════════════════════════════════
 function initPanelResize(){
   const handle=document.getElementById('panel-resize');
   const panel=document.getElementById('panel');
   let dragging=false, startX=0, startW=0;
-
   handle.addEventListener('mousedown',e=>{
     dragging=true; startX=e.clientX; startW=panel.offsetWidth;
     handle.classList.add('dragging');
-    document.body.style.cursor='col-resize';
-    document.body.style.userSelect='none';
+    document.body.style.cursor='col-resize'; document.body.style.userSelect='none';
     e.preventDefault();
   });
   document.addEventListener('mousemove',e=>{
     if(!dragging)return;
-    const diff=startX-e.clientX;   // drag left → wider
-    const newW=Math.max(200,Math.min(680,startW+diff));
-    panel.style.width=newW+'px';
+    panel.style.width=Math.max(200,Math.min(680,startW+(startX-e.clientX)))+'px';
   });
   document.addEventListener('mouseup',()=>{
-    if(!dragging)return;
-    dragging=false;
+    if(!dragging)return; dragging=false;
     handle.classList.remove('dragging');
-    document.body.style.cursor='';
-    document.body.style.userSelect='';
+    document.body.style.cursor=''; document.body.style.userSelect='';
   });
 }
 
 // ═══════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════
-function numSort(dict){return Object.keys(dict).map(Number).sort((a,b)=>a-b);}
+function numSort(dict){ return Object.keys(dict).map(Number).sort((a,b)=>a-b); }
 function download(content,filename){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));
@@ -930,25 +1029,24 @@ function download(content,filename){
 }
 function updateBadges(){
   [...CH_KEYS,'Extra'].forEach(k=>{
-    const el=document.getElementById(`badge-${k}`);if(!el)return;
+    const el=document.getElementById(`badge-${k}`); if(!el)return;
     const cnt=Object.keys(S.chapters[k].dialogue).length;
     el.textContent=cnt?` ${cnt}`:'';
   });
 }
-function setStatus(msg){document.getElementById('status').textContent=msg||'就緒';}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-// Dropdown
-function toggleDD(id){document.getElementById(id+'-menu').classList.toggle('open');}
-function closeDD(id){document.getElementById(id+'-menu').classList.remove('open');}
+function setStatus(msg){ document.getElementById('status').textContent=msg||'就緒'; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toggleDD(id){ document.getElementById(id+'-menu').classList.toggle('open'); }
+function closeDD(id){ document.getElementById(id+'-menu').classList.remove('open'); }
 document.addEventListener('click',e=>{
   document.querySelectorAll('.dropdown-menu.open').forEach(m=>{
     if(!m.closest('.dropdown').contains(e.target)) m.classList.remove('open');
   });
 });
 
-// Init
+// ─── Init ───────────────────────────────────────────
 initPanelResize();
+initRubberBand();
 </script>
 </body>
 </html>
