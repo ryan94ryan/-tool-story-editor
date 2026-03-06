@@ -683,7 +683,12 @@ function optionsFromSE(rawLines) {
     if (!t.startsWith('Buttonset')||t.endsWith('null')) continue;
     const parts=t.split(':'); if(parts.length<3) continue;
     const gm=parts.slice(2).join(':').match(/\{G_(\d+)\}/);
-    if (gm) opts.push({label:parts[1].trim(),target:+gm[1]});
+    if (gm) {
+      const rawLabel=parts[1].trim();
+      const condM=rawLabel.match(/\{f_([^}]+)\}/);
+      const cleanLabel=rawLabel.replace(/\{[^}]+\}/g,'').trim();
+      opts.push({label:cleanLabel, flagCond:condM?condM[1]:null, target:+gm[1]});
+    }
   }
   return opts;
 }
@@ -733,12 +738,12 @@ function buildElements(key) {
   for (const [k,g] of Object.entries(dialogue)) {
     const id=+k, info=edgesFromGroup(g.rawLines);
     info.conds.forEach((c,ci)=>{
-      nodes.push({group:'nodes', data:{id:`Cond_${id}_${ci}`, label:`IF\n${c.cond}`, ntype:'cond'}});
+      nodes.push({group:'nodes', data:{id:`Cond_${id}_${ci}`, label:`IF\n${c.cond}`, ntype:'cond', condExpr:c.cond, tG:c.tG, fG:c.fG, parentGroup:id}});
     });
   }
 
   const nodeIds=new Set(nodes.map(n=>n.data.id));
-  const addEdge=(src,tgt,lbl='')=>{ if(nodeIds.has(tgt)) edges.push({group:'edges',data:{id:`e${ei++}`,source:src,target:tgt,label:lbl}}); };
+  const addEdge=(src,tgt,lbl='',etype='')=>{ if(nodeIds.has(tgt)) edges.push({group:'edges',data:{id:`e${ei++}`,source:src,target:tgt,label:lbl,etype}}); };
 
   // Group edges
   for (const [k,g] of Object.entries(dialogue)) {
@@ -748,15 +753,19 @@ function buildElements(key) {
     info.conds.forEach((c,ci)=>{
       const cn=`Cond_${id}_${ci}`;
       addEdge(`Group_${id}`,cn);
-      if(dialogue[c.tG]) addEdge(cn,`Group_${c.tG}`,'TRUE');
-      if(dialogue[c.fG]) addEdge(cn,`Group_${c.fG}`,'FALSE');
+      if(dialogue[c.tG]) addEdge(cn,`Group_${c.tG}`,c.cond,'if-true');
+      if(dialogue[c.fG]) addEdge(cn,`Group_${c.fG}`,'else','if-false');
     });
   }
   // SE edges
   for (const [k,se] of Object.entries(selection)) {
     const id=+k;
-    for (const opt of optionsFromSE(se.rawLines))
-      if(dialogue[opt.target]) addEdge(`SE_${id}`,`Group_${opt.target}`,opt.label.substring(0,12));
+    for (const opt of optionsFromSE(se.rawLines)) {
+      if(dialogue[opt.target]) {
+        const edgeLbl=opt.flagCond?`[${opt.flagCond}]\n${opt.label.substring(0,10)}`:opt.label.substring(0,12);
+        addEdge(`SE_${id}`,`Group_${opt.target}`,edgeLbl);
+      }
+    }
   }
   return [...nodes,...edges];
 }
@@ -802,8 +811,8 @@ const CY_STYLE = [
     'label':'data(label)','font-size':9,'color':'#8b949e',
     'text-background-color':'#0d1117','text-background-opacity':0.85,'text-background-padding':2
   }},
-  { selector:'edge[label="TRUE"]',  style:{'line-color':'#3fb950','target-arrow-color':'#3fb950'}},
-  { selector:'edge[label="FALSE"]', style:{'line-color':'#f85149','target-arrow-color':'#f85149'}},
+  { selector:'edge[etype="if-true"]',  style:{'line-color':'#3fb950','target-arrow-color':'#3fb950'}},
+  { selector:'edge[etype="if-false"]', style:{'line-color':'#f85149','target-arrow-color':'#f85149'}},
   { selector:'edge[label="選項"]',  style:{'line-color':'#a371f7','target-arrow-color':'#a371f7','line-style':'dashed'}},
 ];
 
@@ -892,9 +901,9 @@ function refreshEdgesOnly() {
   let ei=0;
   const uid=()=>`er_${ei++}_${Date.now()}`;
   const nodeIds=new Set(S.cy.nodes().map(n=>n.id()));
-  const addE=(src,tgt,lbl='')=>{
+  const addE=(src,tgt,lbl='',etype='')=>{
     if(!nodeIds.has(tgt)) return;
-    S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl}});
+    S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl,etype}});
   };
 
   for (const [k,g] of Object.entries(dialogue)) {
@@ -913,20 +922,24 @@ function refreshEdgesOnly() {
         const srcNode=S.cy.getElementById(`Group_${id}`);
         const px=srcNode.length?srcNode.position('x')+100:400;
         const py=srcNode.length?srcNode.position('y')+80:300;
-        S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:{x:px,y:py}});
+        S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond',condExpr:c.cond,tG:c.tG,fG:c.fG,parentGroup:id},position:{x:px,y:py}});
         nodeIds.add(cn);
       }
       addE(`Group_${id}`,cn);
-      if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,'TRUE');
-      if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'FALSE');
+      if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,c.cond,'if-true');
+      if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'else','if-false');
     });
   }
   for (const [k,se] of Object.entries(selection)) {
     const id=+k;
     const node=S.cy.getElementById(`SE_${id}`);
     if (node.length) node.data('label',`SE ${id}\n${sePreview(se.rawLines)}`);
-    for (const opt of optionsFromSE(se.rawLines))
-      if(dialogue[opt.target]) addE(`SE_${id}`,`Group_${opt.target}`,opt.label.substring(0,12));
+    for (const opt of optionsFromSE(se.rawLines)) {
+      if(dialogue[opt.target]) {
+        const edgeLbl=opt.flagCond?`[${opt.flagCond}]\n${opt.label.substring(0,10)}`:opt.label.substring(0,12);
+        addE(`SE_${id}`,`Group_${opt.target}`,edgeLbl);
+      }
+    }
   }
 }
 
@@ -943,15 +956,15 @@ function updateGroupInCy(gId, lines, dialogue) {
   S.cy.edges(`[source="Group_${gId}"]`).remove();
   S.cy.nodes().filter(n=>n.id().startsWith(`Cond_${gId}_`)).remove();
   const uid=()=>`eu_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-  const addE=(src,tgt,lbl='')=>{ if(S.cy.getElementById(tgt).length) S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl}}); };
+  const addE=(src,tgt,lbl='',etype='')=>{ if(S.cy.getElementById(tgt).length) S.cy.add({group:'edges',data:{id:uid(),source:src,target:tgt,label:lbl,etype}}); };
   for (const t of info.jumps) if(dialogue[t]) addE(`Group_${gId}`,`Group_${t}`);
   for (const s of info.sels) addE(`Group_${gId}`,`SE_${s}`,'選項');
   info.conds.forEach((c,ci)=>{
     const cn=`Cond_${gId}_${ci}`;
-    S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond'},position:{x:node.position('x')+100,y:node.position('y')+80}});
+    S.cy.add({group:'nodes',data:{id:cn,label:`IF\n${c.cond}`,ntype:'cond',condExpr:c.cond,tG:c.tG,fG:c.fG,parentGroup:gId},position:{x:node.position('x')+100,y:node.position('y')+80}});
     addE(`Group_${gId}`,cn);
-    if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,'TRUE');
-    if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'FALSE');
+    if(dialogue[c.tG]) addE(cn,`Group_${c.tG}`,c.cond,'if-true');
+    if(dialogue[c.fG]) addE(cn,`Group_${c.fG}`,'else','if-false');
   });
 }
 function updateSEInCy(sId, lines, dialogue) {
@@ -960,9 +973,12 @@ function updateSEInCy(sId, lines, dialogue) {
   node.data('label',`SE ${sId}\n${sePreview(lines)}`);
   S.cy.edges(`[source="SE_${sId}"]`).remove();
   const uid=()=>`eu_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-  for (const opt of optionsFromSE(lines))
-    if(S.cy.getElementById(`Group_${opt.target}`).length)
-      S.cy.add({group:'edges',data:{id:uid(),source:`SE_${sId}`,target:`Group_${opt.target}`,label:opt.label.substring(0,12)}});
+  for (const opt of optionsFromSE(lines)) {
+    if(S.cy.getElementById(`Group_${opt.target}`).length) {
+      const edgeLbl=opt.flagCond?`[${opt.flagCond}]\n${opt.label.substring(0,10)}`:opt.label.substring(0,12);
+      S.cy.add({group:'edges',data:{id:uid(),source:`SE_${sId}`,target:`Group_${opt.target}`,label:edgeLbl}});
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -999,12 +1015,25 @@ function renderPanel() {
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag ts">🔀 選項分支</span></div>`;
     html+=`<div class="fl">SE ID</div><div class="fv">${sId}</div>`;
     html+=`<div class="fl">章節</div><div class="fv">${S.active}</div>`;
-    if(opts.length){ html+=`<div class="fl">選項 (${opts.length})</div>`; opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)} → Group_${o.target}</div>`;}); }
+    if(opts.length){ html+=`<div class="fl">選項 (${opts.length})</div>`; opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)}${o.flagCond?` <span style="color:#e3b341">[${esc(o.flagCond)}]</span>`:''} → Group_${o.target}</div>`;}); }
     html+=`<div class="fl">內容預覽 (${se.rawLines.length} 行)</div>`;
     html+=`<div class="fv preview-box">${esc(se.rawLines.slice(0,6).join('\n'))}${se.rawLines.length>6?'\n...':''}</div>`;
   } else if (id.startsWith('Cond_')) {
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
-    html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由 Group 的<br><code>{IF_flag:G_true:G_false}</code><br>產生，請編輯對應 Group</div>`;
+    const condNode=S.cy?S.cy.getElementById(id):null;
+    const condExpr=condNode&&condNode.length?condNode.data('condExpr'):'';
+    const tG=condNode&&condNode.length?condNode.data('tG'):null;
+    const fG=condNode&&condNode.length?condNode.data('fG'):null;
+    const pG=condNode&&condNode.length?condNode.data('parentGroup'):null;
+    if(condExpr){
+      html+=`<div class="fl">條件</div><div class="fv" style="font-family:'Courier New',monospace;color:#e3b341">${esc(condExpr)}</div>`;
+      html+=`<div class="fl" style="margin-top:10px">分支</div>`;
+      if(tG!==null) html+=`<div class="fv" style="font-size:11px;padding:3px 0"><span style="color:#3fb950">✅ 成立</span> → Group_${tG}</div>`;
+      if(fG!==null) html+=`<div class="fv" style="font-size:11px;padding:3px 0"><span style="color:#f85149">❌ 不成立</span> → Group_${fG}</div>`;
+      if(pG!==null) html+=`<div class="fv" style="font-size:11px;color:#484f58;margin-top:6px">由 Group_${pG} 產生</div>`;
+    } else {
+      html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由 Group 的<br><code>{IF_條件:G_成立:G_不成立}</code><br>產生，請編輯對應 Group</div>`;
+    }
     pc.innerHTML=html; pa.style.display='none'; return;
   }
   pc.innerHTML=html;
