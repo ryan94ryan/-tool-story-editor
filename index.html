@@ -401,50 +401,93 @@ input[type=file] { display:none; }
 
       <div class="help-section">
         <h3>📝 指令語法說明</h3>
+        <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">所有指令用半形大括號 <code>{}</code> 包裹，不可使用全形。</p>
 
-        <h4>背景</h4>
+        <h4>背景 / CG</h4>
         <table class="help-table">
-          <tr><td><code>{SetBG_XX}</code></td><td>設置背景圖（XX 為背景編號，null 為清除）</td></tr>
+          <tr><td><code>{SetBG_名稱}</code></td><td>設置背景圖（純指令行，null 為清除）</td></tr>
+          <tr><td><code>{CBG_名稱}</code></td><td>更換背景（可嵌入對話行）</td></tr>
+          <tr><td><code>{CCG_名稱}</code></td><td>顯示 CG 全屏圖</td></tr>
         </table>
 
-        <h4>角色顯示</h4>
+        <h4>角色立繪　<span style="font-size:11px;color:#8b949e">位置：0=左 1=中 2=右</span></h4>
         <table class="help-table">
-          <tr><td><code>{Call_X:角色ID}</code></td><td>呼叫角色到位置 X（如 Call_0:player0）</td></tr>
-          <tr><td><code>{SlideIn_X}</code></td><td>角色滑入到位置 X</td></tr>
-          <tr><td><code>{SlideIn_X_L}</code></td><td>從左邊滑入</td></tr>
-          <tr><td><code>{SlideIn_X_R}</code></td><td>從右邊滑入</td></tr>
-          <tr><td><code>{SlideIn_X_D}</code></td><td>從下方滑入</td></tr>
-          <tr><td><code>{SlideOut_X}</code></td><td>角色滑出</td></tr>
-          <tr><td><code>{SlideOut_X_R}</code></td><td>從右邊滑出</td></tr>
-          <tr><td><code>{SlideOut_X_D}</code></td><td>從下方滑出</td></tr>
+          <tr><td><code>{Call_X:角色ID}</code></td><td>呼叫角色到位置 X（不自動動畫）</td></tr>
           <tr><td><code>{Close_X}</code></td><td>關閉位置 X 的角色</td></tr>
+          <tr><td><code>{SlideIn_X}</code></td><td>從預設方向滑入（需先 Call）</td></tr>
+          <tr><td><code>{SlideIn_X_L/R/U/D}</code></td><td>從指定方向滑入</td></tr>
+          <tr><td><code>{SlideOut_X}</code></td><td>向預設方向滑出</td></tr>
+          <tr><td><code>{SlideOut_X_L/R/U/D}</code></td><td>向指定方向滑出</td></tr>
+          <tr><td><code>{FadeIn_X}</code></td><td>淡入顯示</td></tr>
+          <tr><td><code>{FadeOut_X}</code></td><td>淡出消失</td></tr>
         </table>
 
         <h4>燈光控制</h4>
         <table class="help-table">
-          <tr><td><code>{LC1_Light}</code></td><td>位置 1 角色亮起（說話中）</td></tr>
-          <tr><td><code>{LC1_Dark}</code></td><td>位置 1 角色變暗</td></tr>
-          <tr><td><code>{LC2_Light}</code></td><td>位置 2 角色亮起</td></tr>
-          <tr><td><code>{LC2_Dark}</code></td><td>位置 2 角色變暗</td></tr>
+          <tr><td><code>{LC0_Light}</code> <code>{LC0_Dark}</code></td><td>位置 0 亮起 / 變暗</td></tr>
+          <tr><td><code>{LC1_Light}</code> <code>{LC1_Dark}</code></td><td>位置 1 亮起 / 變暗</td></tr>
+          <tr><td><code>{LC2_Light}</code> <code>{LC2_Dark}</code></td><td>位置 2 亮起 / 變暗</td></tr>
+          <tr><td><code>{LCbg_Light}</code> <code>{LCbg_Dark}</code></td><td>背景亮起 / 變暗</td></tr>
         </table>
 
-        <h4>特效</h4>
+        <h4>音效 / 語音</h4>
         <table class="help-table">
-          <tr><td><code>{Shake_screen}</code></td><td>畫面震動</td></tr>
+          <tr><td><code>{Aubgm_X}</code></td><td>播放 BGM（X 為音樂編號）</td></tr>
+          <tr><td><code>{Ausfx_X}</code></td><td>播放音效（X 為音效編號）</td></tr>
+          <tr><td><code>{AuStop_0}</code></td><td>停止 BGM</td></tr>
+          <tr><td><code>{Voice_X}</code></td><td>播放語音（X 為語音編號）</td></tr>
+          <tr><td><code>{ClearVoice}</code></td><td>清除當前語音</td></tr>
+        </table>
+
+        <h4>特效 / 文字特效</h4>
+        <table class="help-table">
+          <tr><td><code>{Shake_screen}</code></td><td>畫面震動（地震、爆炸）</td></tr>
+          <tr><td><code>{Shake_box}</code></td><td>對話框震動（驚訝、衝擊）</td></tr>
+          <tr><td><code>{TextShake}</code></td><td>文字開始震動（憤怒、恐懼）</td></tr>
+          <tr><td><code>{TextWave}</code></td><td>文字開始波浪（魔法、夢境）</td></tr>
+          <tr><td><code>{TextStop}</code></td><td>停止文字特效</td></tr>
+        </table>
+
+        <h4>介面 / 延遲</h4>
+        <table class="help-table">
+          <tr><td><code>{Tbox_Open}</code></td><td>顯示對話框</td></tr>
+          <tr><td><code>{Tbox_Close}</code></td><td>隱藏對話框</td></tr>
+          <tr><td><code>{Delay_X}</code></td><td>等待 X 秒後繼續</td></tr>
+        </table>
+
+        <h4>旗標操作</h4>
+        <table class="help-table">
+          <tr><td><code>{setflag:名稱:值}</code></td><td>將旗標設為指定值</td></tr>
+          <tr><td><code>{addflag:名稱:值}</code></td><td>將旗標累加（值可為負數）</td></tr>
+          <tr><td><code>{GetBook_欄位名稱}</code></td><td>玩家獲得秘籍</td></tr>
         </table>
 
         <h4>流程控制</h4>
         <table class="help-table">
           <tr><td><code>{G_X}</code></td><td>跳轉到 Group_X</td></tr>
-          <tr><td><code>{S_X}</code></td><td>跳轉到選擇 SE_X</td></tr>
-          <tr><td><code>{GOSCENE_X}</code></td><td>跳轉到場景 X</td></tr>
-          <tr><td><code>{BattleSetting_XXX}</code></td><td>進入戰鬥（XXX 為戰鬥 ID）</td></tr>
-          <tr><td><code>{IF_flag:G_T:G_F}</code></td><td>條件分支：若 flag 為真跳 G_T，否則跳 G_F</td></tr>
+          <tr><td><code>{S_X}</code></td><td>顯示選擇組 SE_X</td></tr>
+          <tr><td><code>{IF_條件:G_T:G_F}</code></td><td>條件分支（成立→G_T，否則→G_F）</td></tr>
+          <tr><td><code>{GOSCENE_X}</code></td><td>跳轉場景 X（完成對話後 2 秒自動執行）</td></tr>
+          <tr><td><code>{BattleSetting_XXX}</code></td><td>設定戰鬥 ID 並進入戰鬥</td></tr>
+          <tr><td><code>{GOCHAPTER_X}</code></td><td>章節轉場動畫</td></tr>
+          <tr><td><code>{LOADCHAPTER_X}</code></td><td>載入第 X 章</td></tr>
+          <tr><td><code>{LOADEXTRA_X}</code></td><td>載入支線 Group X</td></tr>
+          <tr><td><code>{RETURNMAIN}</code></td><td>從支線返回主線（+1 回合）</td></tr>
+          <tr><td><code>{RETURNMAIN_X}</code></td><td>返回主線並跳到 Group X（+1 回合）</td></tr>
+        </table>
+
+        <h4>特殊結局指令</h4>
+        <table class="help-table">
+          <tr><td><code>{gameover}</code></td><td>顯示 Game Over 面板，停止對話</td></tr>
+          <tr><td><code>{non_reduceevent}</code></td><td>此段劇情結束後不增加回合數（搭配 RETURNMAIN 用）</td></tr>
+          <tr><td><code>{FUNC:swipe:角色:背景}</code></td><td>切換場景過場動畫</td></tr>
         </table>
 
         <h4>選擇節點（SE）格式</h4>
         <table class="help-table">
           <tr><td><code>Buttonset_X:選項文字:{G_Y}</code></td><td>選項 X，點擊後跳轉到 Group_Y</td></tr>
+          <tr><td><code>Buttonset_X:選項{f_旗標=值}:{G_Y}</code></td><td>帶條件的選項（不符則隱藏）</td></tr>
+          <tr><td><code>Buttonset_X:null</code></td><td>空按鈕（不顯示）</td></tr>
         </table>
       </div>
 
@@ -454,6 +497,8 @@ input[type=file] { display:none; }
           <li>在 Group 第一行寫 <code>//簡短大綱</code> 可作為節點標籤</li>
           <li>編輯器的「折疊」模式可隱藏指令，只顯示對話</li>
           <li>節點位置會隨雲端存檔一起保存</li>
+          <li><code>{non_reduceevent}</code> 放在劇情任意位置即可生效，結束後不推進時段</li>
+          <li><code>{GOSCENE_X}</code>、<code>{RETURNMAIN}</code> 前的對話顯示完後等 2 秒才自動跳轉</li>
         </ul>
       </div>
     </div>
