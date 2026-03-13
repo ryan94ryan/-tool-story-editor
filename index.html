@@ -154,6 +154,30 @@ input[type=file] { display:none; }
 .ts  { background:#6e40c9; border:1px solid #a371f7; }
 .tc  { background:#3d2f00; border:1px solid #e3b341; }
 
+/* ── Node Style Picker ── */
+.ns-swatches { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; }
+.ns-swatch {
+  width:22px; height:22px; border-radius:3px; cursor:pointer;
+  border:2px solid transparent; transition:transform .1s, border-color .1s; flex-shrink:0;
+}
+.ns-swatch:hover { transform:scale(1.18); }
+.ns-swatch.ns-active { border-color:#f0883e !important; outline:1px solid #f0883e; }
+.ns-colorpickers { display:flex; gap:7px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.ns-colorpickers label { font-size:10px; color:#8b949e; }
+.ns-colorpickers input[type=color] {
+  width:30px; height:24px; border:1px solid #30363d; border-radius:3px;
+  cursor:pointer; padding:2px; background:#21262d; vertical-align:middle;
+}
+.ns-shapes { display:flex; gap:4px; margin-top:8px; flex-wrap:wrap; }
+.ns-shape-btn {
+  padding:3px 10px; border:1px solid #30363d; border-radius:4px;
+  background:#21262d; color:#8b949e; font-size:11px; cursor:pointer; transition:all .12s;
+}
+.ns-shape-btn:hover { background:#30363d; color:#c9d1d9; }
+.ns-shape-btn.ns-active { background:#1f3a5f; border-color:#1f6feb; color:#79c0ff; }
+.ns-reset { margin-top:6px; background:transparent; border:none; color:#484f58; font-size:10px; cursor:pointer; padding:2px 0; display:block; }
+.ns-reset:hover { color:#f85149; }
+
 /* ── Help Modal ── */
 #help-overlay {
   display:none; position:fixed; inset:0; z-index:1000;
@@ -550,6 +574,7 @@ const S = {
   globalFlags: [],
   extraFlags:  [],
   posCache:    {},   // { chapterKey: { nodeId: {x,y} } }
+  nodeStyles:  {},   // { chapterKey: { nodeId: {bg, border, shape} } }
   active: null,
   cy: null,
   sel: null,
@@ -585,6 +610,107 @@ function applyPosToElements(els, key) {
     }
   });
   return true;  // used cached positions
+}
+
+// ═══════════════════════════════════════════════════
+//  Node Style Helpers
+// ═══════════════════════════════════════════════════
+const NS_PRESETS = [
+  {bg:'#0d2d6e', border:'#1f6feb', label:'藍（預設）'},
+  {bg:'#4a0d0d', border:'#f85149', label:'紅（戰鬥）'},
+  {bg:'#3d2e00', border:'#e3b341', label:'金（場景）'},
+  {bg:'#0d2d0d', border:'#3fb950', label:'綠'},
+  {bg:'#0d2a3d', border:'#56c3e0', label:'青'},
+  {bg:'#2d1b69', border:'#a371f7', label:'紫'},
+  {bg:'#3d0d2a', border:'#e07db0', label:'玫紅'},
+  {bg:'#1e2230', border:'#8b949e', label:'灰'},
+  {bg:'#0f0f0f', border:'#484f58', label:'黑'},
+];
+const NS_SHAPES = [
+  {id:'roundrectangle', label:'▭ 圓矩'},
+  {id:'ellipse',        label:'⬬ 橢圓'},
+  {id:'diamond',        label:'◆ 菱形'},
+  {id:'hexagon',        label:'⬡ 六邊'},
+];
+
+function getNodeStyle(nodeId) {
+  if (!S.active) return null;
+  return (S.nodeStyles[S.active] || {})[nodeId] || null;
+}
+function applyNodeStyleToCy(nodeId) {
+  if (!S.cy) return;
+  const node = S.cy.getElementById(nodeId);
+  if (!node.length) return;
+  const st = getNodeStyle(nodeId);
+  if (!st) { node.removeStyle(); return; }
+  const obj = {};
+  if (st.bg)     obj['background-color'] = st.bg;
+  if (st.border) obj['border-color'] = st.border;
+  if (st.shape)  obj['shape'] = st.shape;
+  node.style(obj);
+}
+function applyAllNodeStyles() {
+  if (!S.cy || !S.active) return;
+  const styles = S.nodeStyles[S.active] || {};
+  Object.keys(styles).forEach(applyNodeStyleToCy);
+}
+function setNodeStyleProp(nodeId, props) {
+  if (!S.active) return;
+  if (!S.nodeStyles[S.active]) S.nodeStyles[S.active] = {};
+  S.nodeStyles[S.active][nodeId] = Object.assign(S.nodeStyles[S.active][nodeId] || {}, props);
+  applyNodeStyleToCy(nodeId);
+}
+function setNodeColor(bg, border) {
+  if (!S.sel) return;
+  setNodeStyleProp(S.sel, {bg, border});
+  renderPanel();
+}
+function setNodeColorCustom() {
+  if (!S.sel) return;
+  const bg     = document.getElementById('ns-bg')     ? document.getElementById('ns-bg').value     : null;
+  const border = document.getElementById('ns-border') ? document.getElementById('ns-border').value : null;
+  if (bg && border) setNodeStyleProp(S.sel, {bg, border});
+}
+function setNodeShape(shape) {
+  if (!S.sel) return;
+  setNodeStyleProp(S.sel, {shape});
+  renderPanel();
+}
+function resetNodeStyle() {
+  if (!S.sel || !S.active) return;
+  if (S.nodeStyles[S.active]) delete S.nodeStyles[S.active][S.sel];
+  const node = S.cy ? S.cy.getElementById(S.sel) : null;
+  if (node && node.length) node.removeStyle();
+  renderPanel();
+}
+function buildStylePickerHtml(nodeId) {
+  const st = getNodeStyle(nodeId) || {};
+  const curBg = st.bg || '';
+  const curShape = st.shape || '';
+  // Swatches
+  let html = '<div class="fl" style="margin-top:14px;padding-top:10px;border-top:1px solid #21262d">節點樣式</div>';
+  html += '<div class="ns-swatches">';
+  NS_PRESETS.forEach(p => {
+    const active = curBg === p.bg ? ' ns-active' : '';
+    html += `<div class="ns-swatch${active}" style="background:${p.bg};border-color:${p.border}" title="${p.label}" onclick="setNodeColor('${p.bg}','${p.border}')"></div>`;
+  });
+  html += '</div>';
+  // Custom color pickers
+  const bgVal     = st.bg     || '#0d2d6e';
+  const borderVal = st.border || '#1f6feb';
+  html += `<div class="ns-colorpickers">
+    <label>背景</label><input type="color" id="ns-bg" value="${bgVal}" oninput="setNodeColorCustom()">
+    <label>邊框</label><input type="color" id="ns-border" value="${borderVal}" oninput="setNodeColorCustom()">
+  </div>`;
+  // Shape buttons
+  html += '<div class="ns-shapes">';
+  NS_SHAPES.forEach(sh => {
+    const active = curShape === sh.id ? ' ns-active' : '';
+    html += `<button class="ns-shape-btn${active}" onclick="setNodeShape('${sh.id}')">${sh.label}</button>`;
+  });
+  html += '</div>';
+  html += '<button class="ns-reset" onclick="resetNodeStyle()">↺ 重設預設樣式</button>';
+  return html;
 }
 
 // ═══════════════════════════════════════════════════
@@ -928,6 +1054,7 @@ function refreshGraph() {
   const hasCached = applyPosToElements(els, key);
   initCy(els, hasCached);   // preset if cached, cose otherwise
   syncPosCache();            // write back (captures layout result or preset)
+  applyAllNodeStyles();      // restore per-node style overrides
   updateBadges();
 }
 
@@ -1053,6 +1180,7 @@ function renderPanel() {
     if(links.length) html+=`<div class="fl">連結</div><div class="fv" style="font-size:11px;color:#8b949e">${links.join(', ')}</div>`;
     html+=`<div class="fl">內容預覽 (${g.rawLines.length} 行)</div>`;
     html+=`<div class="fv preview-box">${esc(g.rawLines.slice(0,6).join('\n'))}${g.rawLines.length>6?'\n...':''}</div>`;
+    html+=buildStylePickerHtml(id);
   } else if (id.startsWith('SE_')) {
     const sId=+id.replace('SE_','');
     const se=c.selection[sId]; if(!se) return;
@@ -1063,6 +1191,7 @@ function renderPanel() {
     if(opts.length){ html+=`<div class="fl">選項 (${opts.length})</div>`; opts.forEach(o=>{html+=`<div class="fv" style="font-size:11px;padding:2px 0">▸ ${esc(o.label)}${o.flagCond?` <span style="color:#e3b341">[${esc(o.flagCond)}]</span>`:''} → Group_${o.target}</div>`;}); }
     html+=`<div class="fl">內容預覽 (${se.rawLines.length} 行)</div>`;
     html+=`<div class="fv preview-box">${esc(se.rawLines.slice(0,6).join('\n'))}${se.rawLines.length>6?'\n...':''}</div>`;
+    html+=buildStylePickerHtml(id);
   } else if (id.startsWith('Cond_')) {
     html+=`<div class="fl">類型</div><div class="fv"><span class="tag tc">🔮 條件分支</span></div>`;
     const condNode=S.cy?S.cy.getElementById(id):null;
@@ -1079,7 +1208,21 @@ function renderPanel() {
     } else {
       html+=`<div class="fv" style="font-size:11px;color:#8b949e;line-height:1.8;margin-top:12px">由 Group 的<br><code>{IF_條件:G_成立:G_不成立}</code><br>產生，請編輯對應 Group</div>`;
     }
-    pc.innerHTML=html; pa.style.display='none'; return;
+    pc.innerHTML=html;
+    if(pG!==null){
+      pa.style.display='flex';
+      // 把 sel 指向父 Group，讓現有的「開啟編輯器」按鈕正常運作
+      S.sel='Group_'+pG;
+      // 將 cy 的選取同步切換到父 Group 節點
+      if(S.cy){
+        S.cy.elements().unselect();
+        const pgNode=S.cy.getElementById('Group_'+pG);
+        if(pgNode&&pgNode.length) pgNode.select();
+      }
+    } else {
+      pa.style.display='none';
+    }
+    return;
   }
   pc.innerHTML=html;
   pa.style.display='flex';
@@ -1207,7 +1350,8 @@ function onImportMaster(e){
   S.masterFile=f.name;
   const r=new FileReader();
   r.onload=ev=>{
-    S.posCache={};  // clear position cache on full import
+    S.posCache   = {};  // clear position cache on full import
+    S.nodeStyles = {};  // clear node style overrides on full import
     parseMasterFile(ev.target.result);
     updateBadges(); setStatus(`已載入主檔：${f.name}`);
     const firstKey=[...CH_KEYS,'Extra'].find(k=>{ const c=S.chapters[k]; return Object.keys(c.dialogue).length||Object.keys(c.selection).length; });
@@ -1689,6 +1833,7 @@ async function cloudSave() {
   const data = {
     masterContent: generateMasterFile(),
     posCache: S.posCache,
+    nodeStyles: S.nodeStyles,
     savedAt: new Date().toISOString()
   };
 
@@ -1785,7 +1930,8 @@ async function cloudLoad() {
     setBinsMap(binsMap);
 
     // Load data
-    S.posCache = data.posCache || {};
+    S.posCache    = data.posCache    || {};
+    S.nodeStyles  = data.nodeStyles  || {};
     parseMasterFile(data.masterContent);
     updateBadges();
 
