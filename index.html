@@ -1350,7 +1350,6 @@ function onImportMaster(e){
   S.masterFile=f.name;
   const r=new FileReader();
   r.onload=ev=>{
-    S.posCache   = {};  // clear position cache on full import
     S.nodeStyles = {};  // clear node style overrides on full import
     parseMasterFile(ev.target.result);
     updateBadges(); setStatus(`已載入主檔：${f.name}`);
@@ -1372,9 +1371,9 @@ function onInd(type,e){
   r.onload=ev=>{
     const txt=ev.target.result;
     const tKey=S.active&&S.active!=='flags'&&S.active!=='extra_flags'?S.active:'Chapter_0';
-    if(type==='d'){S.chapters[tKey].dialogue=parseDialogue(txt);delete S.posCache[tKey];setStatus(`Dialogue → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
+    if(type==='d'){S.chapters[tKey].dialogue=parseDialogue(txt);setStatus(`Dialogue → ${tKey}`);updateBadges();if(S.active===tKey)refreshGraph();}
     else if(type==='s'){S.chapters[tKey].selection=parseSelection(txt);setStatus(`Selection → ${tKey}`);updateBadges();if(S.active===tKey&&S.cy)refreshEdgesOnly();}
-    else if(type==='ed'){S.chapters['Extra'].dialogue=parseDialogue(txt);delete S.posCache['Extra'];setStatus('Extra_Dialogue 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
+    else if(type==='ed'){S.chapters['Extra'].dialogue=parseDialogue(txt);setStatus('Extra_Dialogue 已載入');updateBadges();if(S.active==='Extra')refreshGraph();}
     else if(type==='es'){S.chapters['Extra'].selection=parseSelection(txt);setStatus('Extra_Selection 已載入');updateBadges();if(S.active==='Extra'&&S.cy)refreshEdgesOnly();}
     else if(type==='gf'){S.globalFlags=parseFlags(txt);setStatus('GlobalFlags 已載入');if(S.active==='flags')renderFlagsPanel('flags');}
     else if(type==='ef'){S.extraFlags=parseFlags(txt);setStatus('Extra_Flags 已載入');if(S.active==='extra_flags')renderFlagsPanel('extra_flags');}
