@@ -321,7 +321,7 @@ input[type=file] { display:none; }
   <div class="sep"></div>
   <button class="btn btn-success" onclick="doSaveMaster()">💾 儲存主檔</button>
   <button class="btn btn-purple"  onclick="doRelease()">🚀 一鍵釋出</button>
-  <button class="btn btn-secondary" onclick="triggerImportPositions()">📍 匯入位置</button>
+  <button class="btn btn-secondary" onclick="triggerImportPositions()">📍 匯入佈局</button>
   <input type="file" id="fi-pos" accept=".json" onchange="onImportPositions(event)">
   <div class="sep"></div>
   <div class="dropdown" id="dd-cloud">
@@ -1400,48 +1400,70 @@ async function doRelease(){
   if(Object.keys(ex.dialogue).length)  zip.file('Extra/Extra_Dialogue.txt',genDialogue(ex.dialogue));
   if(Object.keys(ex.selection).length) zip.file('Extra/Extra_Selection.txt',genSelection(ex.selection));
   if(S.extraFlags.length)              zip.file('Extra/Extra_Flags.txt',genFlags(S.extraFlags));
-  // ── 額外輸出節點位置檔 ──
+  // ── 額外輸出節點佈局檔（位置＋樣式）──
   syncPosCache();
-  if(Object.keys(S.posCache).length){
-    zip.file('NodePositions.json', JSON.stringify(S.posCache, null, 2));
+  const layoutData = { posCache: S.posCache, nodeStyles: S.nodeStyles };
+  if(Object.keys(S.posCache).length || Object.keys(S.nodeStyles).length){
+    zip.file('NodeLayout.json', JSON.stringify(layoutData, null, 2));
   }
   const blob=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
-  setStatus('release.zip 已下載（含 NodePositions.json）');
+  setStatus('release.zip 已下載（含 NodeLayout.json）');
 }
 
 // ═══════════════════════════════════════════════════
-//  Import — Node Positions
+//  Import — Node Layout (Positions + Styles)
 // ═══════════════════════════════════════════════════
 function triggerImportPositions(){document.getElementById('fi-pos').click();}
 function onImportPositions(e){
   const f=e.target.files[0]; if(!f)return;
   const r=new FileReader();
   r.onload=ev=>{
-    let data;
-    try{ data=JSON.parse(ev.target.result); }catch(err){ alert('位置檔案格式錯誤：'+err.message); return; }
-    if(!data||typeof data!=='object'){alert('位置檔案內容無效');return;}
-    let applied=0, skipped=0;
-    for(const key of Object.keys(data)){
-      if(!data[key]||typeof data[key]!=='object'){skipped++;continue;}
-      // merge into posCache (overwrite per-node)
+    let raw;
+    try{ raw=JSON.parse(ev.target.result); }catch(err){ alert('佈局檔案格式錯誤：'+err.message); return; }
+    if(!raw||typeof raw!=='object'){alert('佈局檔案內容無效');return;}
+    // support new format {posCache, nodeStyles} and legacy format (bare posCache)
+    const posData    = raw.posCache    || (!raw.nodeStyles ? raw : {});
+    const styleData  = raw.nodeStyles  || {};
+    // ── merge positions ──
+    let posApplied=0;
+    for(const key of Object.keys(posData)){
+      if(!posData[key]||typeof posData[key]!=='object') continue;
       if(!S.posCache[key]) S.posCache[key]={};
-      for(const nid of Object.keys(data[key])){
-        const p=data[key][nid];
-        if(!p||p.x==null||p.y==null){continue;}
+      for(const nid of Object.keys(posData[key])){
+        const p=posData[key][nid];
+        if(!p||p.x==null||p.y==null) continue;
         S.posCache[key][nid]={x:p.x, y:p.y};
       }
-      applied++;
+      posApplied++;
     }
-    // if current active chapter has position data, apply immediately
-    if(S.active && S.cy && S.posCache[S.active]){
+    // ── merge node styles ──
+    let styleApplied=0;
+    for(const key of Object.keys(styleData)){
+      if(!styleData[key]||typeof styleData[key]!=='object') continue;
+      if(!S.nodeStyles[key]) S.nodeStyles[key]={};
+      for(const nid of Object.keys(styleData[key])){
+        const st=styleData[key][nid];
+        if(!st) continue;
+        S.nodeStyles[key][nid]=Object.assign(S.nodeStyles[key][nid]||{}, st);
+      }
+      styleApplied++;
+    }
+    // ── apply to current view ──
+    if(S.active && S.cy){
       const saved=S.posCache[S.active];
-      S.cy.nodes().forEach(node=>{
-        const pos=saved[node.id()];
-        if(pos&&pos.x!=null&&pos.y!=null) node.position({x:pos.x, y:pos.y});
-      });
+      if(saved){
+        S.cy.nodes().forEach(node=>{
+          const pos=saved[node.id()];
+          if(pos&&pos.x!=null&&pos.y!=null) node.position({x:pos.x, y:pos.y});
+        });
+      }
+      applyAllNodeStyles();
     }
-    setStatus(`位置匯入完成：${applied} 章節已套用` + (skipped?`，${skipped} 筆 null 已忽略`:''));
+    const parts=[];
+    if(posApplied)   parts.push(`${posApplied} 章節位置`);
+    if(styleApplied) parts.push(`${styleApplied} 章節樣式`);
+    setStatus('佈局匯入完成：' + (parts.length ? parts.join('、') + '已套用' : '無有效資料'));
   };
   r.readAsText(f,'UTF-8'); e.target.value='';
 }
