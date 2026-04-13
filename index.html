@@ -319,15 +319,14 @@ input[type=file] { display:none; }
   <button class="btn btn-secondary" onclick="doLayout()">📐 排版</button>
   <button class="btn btn-secondary" onclick="cyFit()">🔍 全覽</button>
   <div class="sep"></div>
-  <button class="btn btn-success" onclick="doSaveMaster()">💾 儲存主檔</button>
-  <button class="btn btn-purple"  onclick="doRelease()">🚀 一鍵釋出</button>
+  <button class="btn btn-purple" onclick="doExport()">📦 輸出</button>
   <button class="btn btn-secondary" onclick="triggerImportPositions()">📍 匯入佈局</button>
   <input type="file" id="fi-pos" accept=".json" onchange="onImportPositions(event)">
   <div class="sep"></div>
   <div class="dropdown" id="dd-cloud">
     <button class="btn btn-secondary" onclick="toggleDD('dd-cloud')" style="background:#0e4429;border-color:#238636;">☁ 雲端 ▾</button>
     <div class="dropdown-menu" id="dd-cloud-menu">
-      <div class="dropdown-item" onclick="showCloudSettings();closeDD('dd-cloud')">⚙ 設定 API Key</div>
+      <div class="dropdown-item" onclick="showCloudSettings();closeDD('dd-cloud')">⚙ 設定 GitHub Token</div>
       <div class="dropdown-item item-sep" onclick="cloudSave();closeDD('dd-cloud')">☁ 雲端存檔</div>
       <div class="dropdown-item" onclick="cloudLoad();closeDD('dd-cloud')">☁ 雲端讀取</div>
     </div>
@@ -400,17 +399,18 @@ input[type=file] { display:none; }
       <div class="help-section">
         <h3>🚀 快速開始</h3>
         <p><b>本地使用：</b>匯入主檔 → 編輯 → 儲存主檔 → 一鍵釋出</p>
-        <p><b>雲端同步：</b>設定 API Key → 雲端存檔/讀取（跨裝置）</p>
+        <p><b>雲端同步：</b>設定 GitHub Token → 雲端存檔/讀取（跨裝置）</p>
       </div>
 
       <div class="help-section">
-        <h3>☁ 雲端設定（jsonbin.io）</h3>
+        <h3>☁ 雲端設定（GitHub Gist）</h3>
         <ol>
-          <li>前往 <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> 免費註冊</li>
-          <li>登入後點擊頭像 → API Keys</li>
-          <li>複製 X-Master-Key</li>
-          <li>回到編輯器「☁ 雲端 → 設定 API Key」貼上</li>
+          <li>前往 <a href="https://github.com/settings/tokens" target="_blank">GitHub Token 設定頁</a></li>
+          <li>點擊 Generate new token (classic)</li>
+          <li>勾選 <b>gist</b> scope → 產生 token</li>
+          <li>回到編輯器「☁ 雲端 → 設定 GitHub Token」貼上</li>
         </ol>
+        <p style="margin-top:6px;font-size:12px;color:#8b949e;">存檔無大小限制，且支援版本歷史。</p>
       </div>
 
       <div class="help-section">
@@ -1386,29 +1386,45 @@ function onInd(type,e){
 // ═══════════════════════════════════════════════════
 //  Export
 // ═══════════════════════════════════════════════════
-function doSaveMaster(){ download(generateMasterFile(),S.masterFile); setStatus('主檔已下載：'+S.masterFile); }
-async function doRelease(){
+async function doExport(){
   if(typeof JSZip==='undefined'){alert('JSZip 尚未載入，請確認網路連線');return;}
   const zip=new JSZip();
+  // ── 主檔 ──
+  zip.file(S.masterFile, generateMasterFile());
+  // ── Flags ──
   if(S.globalFlags.length) zip.file('Flags/GlobalFlags.txt',genFlags(S.globalFlags));
+  // ── MainStory chapters ──
   CH_KEYS.forEach(key=>{
     const c=S.chapters[key];
     if(Object.keys(c.dialogue).length)  zip.file(`MainStory/${key}/${key}_Dialogue.txt`,genDialogue(c.dialogue));
     if(Object.keys(c.selection).length) zip.file(`MainStory/${key}/${key}_Selection.txt`,genSelection(c.selection));
   });
+  // ── Extra ──
   const ex=S.chapters['Extra'];
   if(Object.keys(ex.dialogue).length)  zip.file('Extra/Extra_Dialogue.txt',genDialogue(ex.dialogue));
   if(Object.keys(ex.selection).length) zip.file('Extra/Extra_Selection.txt',genSelection(ex.selection));
   if(S.extraFlags.length)              zip.file('Extra/Extra_Flags.txt',genFlags(S.extraFlags));
-  // ── 額外輸出節點佈局檔（位置＋樣式）──
+  // ── NodeLayout ──
   syncPosCache();
   const layoutData = { posCache: S.posCache, nodeStyles: S.nodeStyles };
   if(Object.keys(S.posCache).length || Object.keys(S.nodeStyles).length){
     zip.file('NodeLayout.json', JSON.stringify(layoutData, null, 2));
   }
   const blob=await zip.generateAsync({type:'blob'});
+  // ── 儲存：優先使用 showSaveFilePicker ──
+  if(window.showSaveFilePicker){
+    try{
+      const handle=await window.showSaveFilePicker({suggestedName:'release.zip',types:[{description:'ZIP',accept:{'application/zip':['.zip']}}]});
+      const writable=await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      setStatus('已儲存：'+handle.name);
+      return;
+    }catch(err){if(err.name!=='AbortError') console.warn('showSaveFilePicker failed, fallback',err);}
+  }
+  // ── fallback：<a> 下載 ──
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
-  setStatus('release.zip 已下載（含 NodeLayout.json）');
+  setStatus('release.zip 已下載');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1833,10 +1849,10 @@ function closeHelp() {
 }
 
 // ═══════════════════════════════════════════════════
-//  Cloud Storage (jsonbin.io)
+//  Cloud Storage (GitHub Gist)
 // ═══════════════════════════════════════════════════
-const CLOUD_STORAGE_KEY = 'ayan_editor_apikey';
-const CLOUD_BINS_KEY = 'ayan_editor_bins';
+const CLOUD_STORAGE_KEY = 'ayan_editor_github_token';
+const CLOUD_BINS_KEY = 'ayan_editor_gists';
 let currentProjectId = null; // Track current loaded project
 
 function getApiKey() {
@@ -1855,11 +1871,20 @@ function setBinsMap(map) {
 
 function showCloudSettings() {
   const current = getApiKey();
-  const masked = current ? current.substring(0, 20) + '...' : '（尚未設定）';
-  const newKey = prompt(`目前 API Key：${masked}\n\n請輸入 jsonbin.io 的 X-Master-Key：\n（前往 jsonbin.io 註冊後，在 API Keys 頁面取得）`, current);
+  const masked = current ? current.substring(0, 10) + '...' + current.slice(-4) : '（尚未設定）';
+  const newKey = prompt(
+    `目前 Token：${masked}\n\n` +
+    `請輸入 GitHub Personal Access Token：\n\n` +
+    `取得方式：\n` +
+    `1. 前往 GitHub → Settings → Developer settings\n` +
+    `2. Personal access tokens → Tokens (classic)\n` +
+    `3. Generate new token → 勾選「gist」scope\n` +
+    `4. 複製產生的 token 貼到這裡`,
+    current
+  );
   if (newKey !== null && newKey.trim()) {
     setApiKey(newKey.trim());
-    setStatus('API Key 已儲存');
+    setStatus('GitHub Token 已儲存');
   }
 }
 
@@ -1876,9 +1901,9 @@ function setCurrentProject(projectId) {
 }
 
 async function cloudSave() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('請先設定 API Key！\n\n點擊「☁ 雲端 → 設定 API Key」');
+  const token = getApiKey();
+  if (!token) {
+    alert('請先設定 GitHub Token！\n\n點擊「☁ 雲端 → 設定 GitHub Token」');
     return;
   }
 
@@ -1888,44 +1913,54 @@ async function cloudSave() {
     if (!projectKey || !projectKey.trim()) return;
     key = projectKey.trim().toLowerCase();
   } else {
-    // Confirm using current project
     if (!confirm(`確定要儲存到專案「${key}」嗎？`)) return;
   }
 
-  setStatus('☁ 正在儲存到雲端...');
+  setStatus('☁ 正在儲存到 GitHub Gist...');
 
-  const data = {
-    masterContent: generateMasterFile(),
+  const masterContent = generateMasterFile();
+  const layoutData = JSON.stringify({
     posCache: S.posCache,
     nodeStyles: S.nodeStyles,
     savedAt: new Date().toISOString()
-  };
+  }, null, 2);
 
-  const binsMap = getBinsMap();
-  const existingBinId = binsMap[key];
+  const gistsMap = getBinsMap();
+  const existingGistId = gistsMap[key];
+
+  const files = {
+    'master.txt': { content: masterContent || ' ' },
+    'layout.json': { content: layoutData }
+  };
 
   try {
     let response;
-    if (existingBinId) {
-      // Update existing bin
-      response = await fetch(`https://api.jsonbin.io/v3/b/${existingBinId}`, {
-        method: 'PUT',
+    if (existingGistId) {
+      response = await fetch(`https://api.github.com/gists/${existingGistId}`, {
+        method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': apiKey
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          description: `ayan_editor_${key}`,
+          files
+        })
       });
     } else {
-      // Create new bin
-      response = await fetch('https://api.jsonbin.io/v3/b', {
+      response = await fetch('https://api.github.com/gists', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': apiKey,
-          'X-Bin-Name': `ayan_editor_${key}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          description: `ayan_editor_${key}`,
+          public: false,
+          files
+        })
       });
     }
 
@@ -1935,14 +1970,14 @@ async function cloudSave() {
     }
 
     const result = await response.json();
-    if (!existingBinId && result.metadata?.id) {
-      binsMap[key] = result.metadata.id;
-      setBinsMap(binsMap);
+    if (!existingGistId && result.id) {
+      gistsMap[key] = result.id;
+      setBinsMap(gistsMap);
     }
 
     setCurrentProject(key);
-    setStatus(`☁ 已儲存到雲端 [${key}]`);
-    alert(`雲端存檔成功！\n\n專案代碼：${key}\n\n下次在任何裝置輸入相同的 API Key 和專案代碼即可讀取。`);
+    setStatus(`☁ 已儲存到 GitHub Gist [${key}]`);
+    alert(`雲端存檔成功！\n\n專案代碼：${key}\nGist ID：${result.id}\n\n下次在任何裝置輸入相同的 GitHub Token 即可讀取。`);
   } catch (err) {
     setStatus('☁ 儲存失敗');
     alert('雲端儲存失敗：' + err.message);
@@ -1950,31 +1985,96 @@ async function cloudSave() {
 }
 
 async function cloudLoad() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('請先設定 API Key！\n\n點擊「☁ 雲端 → 設定 API Key」');
+  const token = getApiKey();
+  if (!token) {
+    alert('請先設定 GitHub Token！\n\n點擊「☁ 雲端 → 設定 GitHub Token」');
     return;
   }
 
-  const projectKey = prompt('請輸入要讀取的專案代碼：');
-  if (!projectKey || !projectKey.trim()) return;
-  const key = projectKey.trim().toLowerCase();
+  // Try to list user's gists and let them pick
+  setStatus('☁ 正在從 GitHub 載入 Gist 清單...');
+  let gistList = [];
+  try {
+    const listResp = await fetch('https://api.github.com/gists?per_page=100', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+    if (listResp.ok) {
+      const allGists = await listResp.json();
+      gistList = allGists.filter(g => g.description && g.description.startsWith('ayan_editor_'));
+    }
+  } catch (e) { /* ignore list error, fall back to manual input */ }
 
-  const binsMap = getBinsMap();
-  let binId = binsMap[key];
+  let gistId, key;
+  const gistsMap = getBinsMap();
 
-  // If not in local cache, try to find by searching (requires bin ID input)
-  if (!binId) {
-    const manualId = prompt(`找不到專案 [${key}] 的本地記錄。\n\n如果你在其他裝置儲存過，請輸入 Bin ID：\n（可在 jsonbin.io 的 Bins 頁面找到）\n\n或按取消放棄。`);
-    if (!manualId || !manualId.trim()) return;
-    binId = manualId.trim();
+  if (gistList.length > 0) {
+    // Build selection prompt
+    const lines = gistList.map((g, i) => {
+      const projName = g.description.replace('ayan_editor_', '');
+      const date = new Date(g.updated_at).toLocaleString();
+      return `${i + 1}. ${projName}（${date}）`;
+    });
+    const choice = prompt(
+      `找到 ${gistList.length} 個雲端專案：\n\n` +
+      lines.join('\n') +
+      `\n\n請輸入編號選擇，或輸入 Gist ID 直接載入：`
+    );
+    if (!choice || !choice.trim()) { setStatus('就緒'); return; }
+
+    const num = parseInt(choice.trim());
+    if (num >= 1 && num <= gistList.length) {
+      const selected = gistList[num - 1];
+      gistId = selected.id;
+      key = selected.description.replace('ayan_editor_', '');
+    } else {
+      // Treat as manual Gist ID
+      gistId = choice.trim();
+      key = prompt('請輸入此專案的代碼（用於本地識別）：');
+      if (!key || !key.trim()) { setStatus('就緒'); return; }
+      key = key.trim().toLowerCase();
+    }
+  } else {
+    // No gists found or list failed — fall back to manual input
+    const localKeys = Object.keys(gistsMap);
+    if (localKeys.length > 0) {
+      const localList = localKeys.map((k, i) => `${i + 1}. ${k}`).join('\n');
+      const choice = prompt(
+        `本地記錄的專案：\n\n${localList}\n\n` +
+        `請輸入編號選擇，或輸入 Gist ID 直接載入：`
+      );
+      if (!choice || !choice.trim()) { setStatus('就緒'); return; }
+
+      const num = parseInt(choice.trim());
+      if (num >= 1 && num <= localKeys.length) {
+        key = localKeys[num - 1];
+        gistId = gistsMap[key];
+      } else {
+        gistId = choice.trim();
+        key = prompt('請輸入此專案的代碼（用於本地識別）：');
+        if (!key || !key.trim()) { setStatus('就緒'); return; }
+        key = key.trim().toLowerCase();
+      }
+    } else {
+      const manualId = prompt('請輸入 Gist ID：\n（可從 GitHub Gist 頁面 URL 最後一段複製）');
+      if (!manualId || !manualId.trim()) { setStatus('就緒'); return; }
+      gistId = manualId.trim();
+      key = prompt('請輸入此專案的代碼（用於本地識別）：');
+      if (!key || !key.trim()) { setStatus('就緒'); return; }
+      key = key.trim().toLowerCase();
+    }
   }
 
-  setStatus('☁ 正在從雲端讀取...');
+  setStatus('☁ 正在從 GitHub Gist 讀取...');
 
   try {
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-      headers: { 'X-Master-Key': apiKey }
+    const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
     });
 
     if (!response.ok) {
@@ -1982,26 +2082,43 @@ async function cloudLoad() {
       throw new Error(err.message || '讀取失敗');
     }
 
-    const result = await response.json();
-    const data = result.record;
+    const gist = await response.json();
 
-    if (!data.masterContent) {
-      throw new Error('資料格式不正確');
+    // Read master.txt
+    const masterFile = gist.files['master.txt'];
+    if (!masterFile) {
+      throw new Error('Gist 中找不到 master.txt');
+    }
+    const masterContent = masterFile.content;
+
+    // Read layout.json (optional)
+    const layoutFile = gist.files['layout.json'];
+    if (layoutFile) {
+      try {
+        const layout = JSON.parse(layoutFile.content);
+        S.posCache   = layout.posCache   || {};
+        S.nodeStyles = layout.nodeStyles || {};
+      } catch (e) {
+        console.warn('layout.json 解析失敗，略過', e);
+      }
+    } else {
+      S.posCache = {};
+      S.nodeStyles = {};
     }
 
-    // Save bin ID to local cache
-    binsMap[key] = binId;
-    setBinsMap(binsMap);
+    // Save gist ID to local cache
+    gistsMap[key] = gistId;
+    setBinsMap(gistsMap);
 
-    // Load data
-    S.posCache    = data.posCache    || {};
-    S.nodeStyles  = data.nodeStyles  || {};
-    parseMasterFile(data.masterContent);
+    // Load master content
+    parseMasterFile(masterContent);
     updateBadges();
 
-    const savedAt = data.savedAt ? new Date(data.savedAt).toLocaleString() : '未知';
+    const savedAt = layoutFile
+      ? (() => { try { return new Date(JSON.parse(layoutFile.content).savedAt).toLocaleString(); } catch { return '未知'; } })()
+      : '未知';
     setCurrentProject(key);
-    setStatus(`☁ 已從雲端載入 [${key}]`);
+    setStatus(`☁ 已從 GitHub Gist 載入 [${key}]`);
 
     // Switch to first chapter with content
     const firstKey = [...CH_KEYS, 'Extra'].find(k => {
