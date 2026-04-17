@@ -223,8 +223,8 @@ input[type=file] { display:none; }
 #modal-overlay.open { display:flex; align-items:center; justify-content:center; }
 #modal-box {
   background:#161b22; border:1px solid #30363d; border-radius:8px;
-  width:700px; min-width:400px; max-width:90vw;
-  height:500px; min-height:300px; max-height:85vh;
+  width:94vw; min-width:400px; max-width:94vw;
+  height:90vh; min-height:300px; max-height:90vh;
   display:flex; flex-direction:column; position:relative;
   box-shadow:0 8px 32px rgba(0,0,0,0.5);
 }
@@ -268,6 +268,104 @@ input[type=file] { display:none; }
 .cmd-btn:not(:first-of-type) { border-left:none; }
 .cmd-btn:hover { background:#30363d; }
 .cmd-btn.active { background:#238636; border-color:#238636; color:#fff; }
+/* ── Command Palette (/ slash) ── */
+#cmd-palette {
+  display:none; position:absolute; z-index:20;
+  background:#1c2129; border:1px solid #30363d; border-radius:6px;
+  max-height:220px; width:370px; overflow-y:auto;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  font-size:12px; left:20px;
+}
+#cmd-palette.open { display:block; }
+#cmd-palette .cp-item {
+  padding:5px 10px; cursor:pointer; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid #161b22;
+}
+#cmd-palette .cp-item:hover,
+#cmd-palette .cp-item.sel { background:#30363d; }
+#cmd-palette .cp-cmd {
+  color:#58a6ff; font-family:'Courier New',monospace; font-size:11px;
+  min-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#cmd-palette .cp-desc { color:#8b949e; font-size:11px; flex:1; white-space:nowrap; }
+#cmd-palette .cp-cat  { color:#484f58; font-size:10px; text-align:right; white-space:nowrap; }
+#cmd-palette .cp-empty { padding:8px 10px; color:#484f58; font-size:11px; text-align:center; }
+#cmd-palette .cp-hint  {
+  position:sticky; bottom:0; padding:3px 10px; font-size:10px; color:#484f58;
+  background:#1c2129; border-top:1px solid #30363d; text-align:center;
+}
+/* ── Command Sidebar ── */
+#editor-area { flex:1; display:flex; gap:0; overflow:hidden; min-height:0; }
+#cmd-sidebar {
+  width:170px; min-width:100px; max-width:400px; flex-shrink:0;
+  overflow-y:auto; overflow-x:hidden;
+  background:#161b22; border:1px solid #30363d; border-radius:4px 0 0 4px;
+  display:flex; flex-direction:column; scrollbar-width:thin;
+}
+#cmd-sidebar.hidden { display:none; }
+#cmd-sidebar.hidden + #sidebar-drag { display:none; }
+.cs-toolbar {
+  flex-shrink:0; padding:4px 6px; border-bottom:1px solid #30363d;
+  display:flex; align-items:center; gap:4px; background:#161b22;
+  position:sticky; top:0; z-index:1;
+}
+.cs-toolbar span { font-size:9px; color:#6e7681; }
+.cs-size-btn {
+  width:20px; height:18px; border:1px solid #30363d; border-radius:3px;
+  background:#21262d; color:#8b949e; font-size:10px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  transition:background .1s;
+}
+.cs-size-btn:hover { background:#30363d; color:#c9d1d9; }
+.cs-size-btn.active { background:#238636; border-color:#238636; color:#fff; }
+.cs-content { flex:1; overflow-y:auto; padding:6px; }
+.cs-cat {
+  color:#8b949e; font-size:10px; font-weight:600; margin:8px 0 3px;
+  padding:2px 0; border-bottom:1px solid #21262d; cursor:pointer;
+  user-select:none;
+}
+.cs-cat:first-child { margin-top:0; }
+.cs-cat::before { content:'▾ '; font-size:9px; }
+.cs-cat.collapsed::before { content:'▸ '; }
+.cs-group { display:flex; flex-wrap:wrap; gap:2px; margin-bottom:2px; }
+.cs-cat.collapsed + .cs-group { display:none; }
+.cs-sub {
+  width:100%; color:#6e7681; font-size:9px; margin:3px 0 1px;
+  padding-left:2px; font-style:italic;
+}
+.cs-btn {
+  padding:2px 4px; border:1px solid #30363d; border-radius:3px;
+  background:#21262d; color:#79c0ff; font-size:10px; cursor:pointer;
+  font-family:'Courier New',monospace; white-space:nowrap;
+  transition:background .1s, border-color .1s;
+}
+.cs-btn:hover { background:#30363d; border-color:#58a6ff; }
+/* size presets */
+.cs-btn.sz-s  { font-size:9px;  padding:1px 3px; }
+.cs-btn.sz-m  { font-size:10px; padding:2px 4px; }
+.cs-btn.sz-l  { font-size:12px; padding:3px 6px; }
+.cs-sub.sz-s  { font-size:8px; }
+.cs-sub.sz-m  { font-size:9px; }
+.cs-sub.sz-l  { font-size:10px; }
+.cs-cat.sz-s  { font-size:9px; }
+.cs-cat.sz-m  { font-size:10px; }
+.cs-cat.sz-l  { font-size:11px; }
+/* drag handle between sidebar and editor */
+#sidebar-drag {
+  width:6px; flex-shrink:0; cursor:col-resize;
+  background:#21262d; border-left:1px solid #30363d; border-right:1px solid #30363d;
+  transition:background .15s; display:flex; align-items:center; justify-content:center;
+}
+#sidebar-drag:hover, #sidebar-drag.dragging { background:#30363d; }
+#sidebar-drag::after {
+  content:''; width:2px; height:24px; border-left:1px solid #484f58; border-right:1px solid #484f58;
+}
+.header-icon-btn {
+  background:transparent; border:none; color:#8b949e; font-size:15px;
+  cursor:pointer; padding:0 6px; line-height:1; transition:color .15s;
+}
+.header-icon-btn:hover { color:#58a6ff; }
+.header-icon-btn.active { color:#58a6ff; }
 #modal-editor {
   position:absolute; inset:0; padding:8px; resize:none;
   background:transparent; color:transparent; border:none;
@@ -319,14 +417,15 @@ input[type=file] { display:none; }
   <button class="btn btn-secondary" onclick="doLayout()">📐 排版</button>
   <button class="btn btn-secondary" onclick="cyFit()">🔍 全覽</button>
   <div class="sep"></div>
-  <button class="btn btn-purple" onclick="doExport()">📦 輸出</button>
+  <button class="btn btn-success" onclick="doSaveMaster()">💾 儲存主檔</button>
+  <button class="btn btn-purple"  onclick="doRelease()">🚀 一鍵釋出</button>
   <button class="btn btn-secondary" onclick="triggerImportPositions()">📍 匯入佈局</button>
   <input type="file" id="fi-pos" accept=".json" onchange="onImportPositions(event)">
   <div class="sep"></div>
   <div class="dropdown" id="dd-cloud">
     <button class="btn btn-secondary" onclick="toggleDD('dd-cloud')" style="background:#0e4429;border-color:#238636;">☁ 雲端 ▾</button>
     <div class="dropdown-menu" id="dd-cloud-menu">
-      <div class="dropdown-item" onclick="showCloudSettings();closeDD('dd-cloud')">⚙ 設定 GitHub Token</div>
+      <div class="dropdown-item" onclick="showCloudSettings();closeDD('dd-cloud')">⚙ 設定 API Key</div>
       <div class="dropdown-item item-sep" onclick="cloudSave();closeDD('dd-cloud')">☁ 雲端存檔</div>
       <div class="dropdown-item" onclick="cloudLoad();closeDD('dd-cloud')">☁ 雲端讀取</div>
     </div>
@@ -399,18 +498,17 @@ input[type=file] { display:none; }
       <div class="help-section">
         <h3>🚀 快速開始</h3>
         <p><b>本地使用：</b>匯入主檔 → 編輯 → 儲存主檔 → 一鍵釋出</p>
-        <p><b>雲端同步：</b>設定 GitHub Token → 雲端存檔/讀取（跨裝置）</p>
+        <p><b>雲端同步：</b>設定 API Key → 雲端存檔/讀取（跨裝置）</p>
       </div>
 
       <div class="help-section">
-        <h3>☁ 雲端設定（GitHub Gist）</h3>
+        <h3>☁ 雲端設定（jsonbin.io）</h3>
         <ol>
-          <li>前往 <a href="https://github.com/settings/tokens" target="_blank">GitHub Token 設定頁</a></li>
-          <li>點擊 Generate new token (classic)</li>
-          <li>勾選 <b>gist</b> scope → 產生 token</li>
-          <li>回到編輯器「☁ 雲端 → 設定 GitHub Token」貼上</li>
+          <li>前往 <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> 免費註冊</li>
+          <li>登入後點擊頭像 → API Keys</li>
+          <li>複製 X-Master-Key</li>
+          <li>回到編輯器「☁ 雲端 → 設定 API Key」貼上</li>
         </ol>
-        <p style="margin-top:6px;font-size:12px;color:#8b949e;">存檔無大小限制，且支援版本歷史。</p>
       </div>
 
       <div class="help-section">
@@ -502,11 +600,28 @@ input[type=file] { display:none; }
           <tr><td><code>{RETURNMAIN_X}</code></td><td>返回主線並跳到 Group X（+1 回合）</td></tr>
         </table>
 
-        <h4>特殊結局指令</h4>
+        <h4>特殊指令</h4>
         <table class="help-table">
           <tr><td><code>{gameover}</code></td><td>顯示 Game Over 面板，停止對話</td></tr>
           <tr><td><code>{non_reduceevent}</code></td><td>此段劇情結束後不增加回合數（搭配 RETURNMAIN 用）</td></tr>
+          <tr><td><code>{addcurrentround}</code></td><td>手動 +1 回合（eventround）</td></tr>
+          <tr><td><code>{Achievement_成就ID}</code></td><td>解鎖成就（首次觸發彈窗）</td></tr>
           <tr><td><code>{FUNC:swipe:角色:背景}</code></td><td>切換場景過場動畫</td></tr>
+        </table>
+
+        <h4>全螢幕黑幕</h4>
+        <table class="help-table">
+          <tr><td><code>{ScreenFadeOut_秒數}</code></td><td>全螢幕淡出至黑幕（秒數支援小數）</td></tr>
+          <tr><td><code>{ScreenFadeIn_秒數}</code></td><td>全螢幕從黑幕淡入回復</td></tr>
+        </table>
+
+        <h4>ExDialogue 全螢幕文字場景</h4>
+        <table class="help-table">
+          <tr><td><code>{exdialogue_1}</code></td><td>開啟 ExDialogue（全螢幕文字累積模式）</td></tr>
+          <tr><td><code>{exdialogue_0}</code></td><td>關閉 ExDialogue（淡出）</td></tr>
+          <tr><td><code>{set_exbg_名稱}</code></td><td>設定 ExDialogue 背景</td></tr>
+          <tr><td><code>{ex_clear}</code></td><td>清空 ExDialogue 累積文字</td></tr>
+          <tr><td><code>{blank}</code></td><td>插入空白行（ExDialogue 文字分段）</td></tr>
         </table>
 
         <h4>選擇節點（SE）格式</h4>
@@ -520,6 +635,7 @@ input[type=file] { display:none; }
       <div class="help-section">
         <h3>💡 小技巧</h3>
         <ul>
+          <li><b>輸入 <code>/</code> 叫出指令面板</b>：編輯器內按 <code>/</code> 會彈出指令選單，打字篩選 → ↑↓ 選擇 → Enter 插入</li>
           <li>在 Group 第一行寫 <code>//簡短大綱</code> 可作為節點標籤</li>
           <li>編輯器的「折疊」模式可隱藏指令，只顯示對話</li>
           <li>節點位置會隨雲端存檔一起保存</li>
@@ -536,13 +652,19 @@ input[type=file] { display:none; }
   <div id="modal-box">
     <div id="modal-header">
       <span id="modal-title">編輯節點</span>
+      <button id="sidebar-toggle" class="header-icon-btn active" onclick="toggleCmdSidebar()" title="指令面板 開/關">📋</button>
       <button id="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div id="modal-body">
       <div id="modal-info"></div>
-      <div id="editor-wrap">
-        <div id="editor-highlight"></div>
-        <textarea id="modal-editor" spellcheck="false" oninput="syncHighlight()" onscroll="syncScroll()"></textarea>
+      <div id="editor-area">
+        <div id="cmd-sidebar"></div>
+        <div id="sidebar-drag"></div>
+        <div id="editor-wrap">
+          <div id="editor-highlight"></div>
+          <textarea id="modal-editor" spellcheck="false" oninput="syncHighlight()" onscroll="syncScroll()"></textarea>
+          <div id="cmd-palette"></div>
+        </div>
       </div>
     </div>
     <div id="modal-footer">
@@ -1386,45 +1508,29 @@ function onInd(type,e){
 // ═══════════════════════════════════════════════════
 //  Export
 // ═══════════════════════════════════════════════════
-async function doExport(){
+function doSaveMaster(){ download(generateMasterFile(),S.masterFile); setStatus('主檔已下載：'+S.masterFile); }
+async function doRelease(){
   if(typeof JSZip==='undefined'){alert('JSZip 尚未載入，請確認網路連線');return;}
   const zip=new JSZip();
-  // ── 主檔 ──
-  zip.file(S.masterFile, generateMasterFile());
-  // ── Flags ──
   if(S.globalFlags.length) zip.file('Flags/GlobalFlags.txt',genFlags(S.globalFlags));
-  // ── MainStory chapters ──
   CH_KEYS.forEach(key=>{
     const c=S.chapters[key];
     if(Object.keys(c.dialogue).length)  zip.file(`MainStory/${key}/${key}_Dialogue.txt`,genDialogue(c.dialogue));
     if(Object.keys(c.selection).length) zip.file(`MainStory/${key}/${key}_Selection.txt`,genSelection(c.selection));
   });
-  // ── Extra ──
   const ex=S.chapters['Extra'];
   if(Object.keys(ex.dialogue).length)  zip.file('Extra/Extra_Dialogue.txt',genDialogue(ex.dialogue));
   if(Object.keys(ex.selection).length) zip.file('Extra/Extra_Selection.txt',genSelection(ex.selection));
   if(S.extraFlags.length)              zip.file('Extra/Extra_Flags.txt',genFlags(S.extraFlags));
-  // ── NodeLayout ──
+  // ── 額外輸出節點佈局檔（位置＋樣式）──
   syncPosCache();
   const layoutData = { posCache: S.posCache, nodeStyles: S.nodeStyles };
   if(Object.keys(S.posCache).length || Object.keys(S.nodeStyles).length){
     zip.file('NodeLayout.json', JSON.stringify(layoutData, null, 2));
   }
   const blob=await zip.generateAsync({type:'blob'});
-  // ── 儲存：優先使用 showSaveFilePicker ──
-  if(window.showSaveFilePicker){
-    try{
-      const handle=await window.showSaveFilePicker({suggestedName:'release.zip',types:[{description:'ZIP',accept:{'application/zip':['.zip']}}]});
-      const writable=await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      setStatus('已儲存：'+handle.name);
-      return;
-    }catch(err){if(err.name!=='AbortError') console.warn('showSaveFilePicker failed, fallback',err);}
-  }
-  // ── fallback：<a> 下載 ──
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='release.zip'; a.click();
-  setStatus('release.zip 已下載');
+  setStatus('release.zip 已下載（含 NodeLayout.json）');
 }
 
 // ═══════════════════════════════════════════════════
@@ -1630,6 +1736,7 @@ function openModal() {
 }
 
 function closeModal() {
+  hidePalette();
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
@@ -1849,10 +1956,10 @@ function closeHelp() {
 }
 
 // ═══════════════════════════════════════════════════
-//  Cloud Storage (GitHub Gist)
+//  Cloud Storage (jsonbin.io)
 // ═══════════════════════════════════════════════════
-const CLOUD_STORAGE_KEY = 'ayan_editor_github_token';
-const CLOUD_BINS_KEY = 'ayan_editor_gists';
+const CLOUD_STORAGE_KEY = 'ayan_editor_apikey';
+const CLOUD_BINS_KEY = 'ayan_editor_bins';
 let currentProjectId = null; // Track current loaded project
 
 function getApiKey() {
@@ -1871,20 +1978,11 @@ function setBinsMap(map) {
 
 function showCloudSettings() {
   const current = getApiKey();
-  const masked = current ? current.substring(0, 10) + '...' + current.slice(-4) : '（尚未設定）';
-  const newKey = prompt(
-    `目前 Token：${masked}\n\n` +
-    `請輸入 GitHub Personal Access Token：\n\n` +
-    `取得方式：\n` +
-    `1. 前往 GitHub → Settings → Developer settings\n` +
-    `2. Personal access tokens → Tokens (classic)\n` +
-    `3. Generate new token → 勾選「gist」scope\n` +
-    `4. 複製產生的 token 貼到這裡`,
-    current
-  );
+  const masked = current ? current.substring(0, 20) + '...' : '（尚未設定）';
+  const newKey = prompt(`目前 API Key：${masked}\n\n請輸入 jsonbin.io 的 X-Master-Key：\n（前往 jsonbin.io 註冊後，在 API Keys 頁面取得）`, current);
   if (newKey !== null && newKey.trim()) {
     setApiKey(newKey.trim());
-    setStatus('GitHub Token 已儲存');
+    setStatus('API Key 已儲存');
   }
 }
 
@@ -1901,9 +1999,9 @@ function setCurrentProject(projectId) {
 }
 
 async function cloudSave() {
-  const token = getApiKey();
-  if (!token) {
-    alert('請先設定 GitHub Token！\n\n點擊「☁ 雲端 → 設定 GitHub Token」');
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('請先設定 API Key！\n\n點擊「☁ 雲端 → 設定 API Key」');
     return;
   }
 
@@ -1913,54 +2011,44 @@ async function cloudSave() {
     if (!projectKey || !projectKey.trim()) return;
     key = projectKey.trim().toLowerCase();
   } else {
+    // Confirm using current project
     if (!confirm(`確定要儲存到專案「${key}」嗎？`)) return;
   }
 
-  setStatus('☁ 正在儲存到 GitHub Gist...');
+  setStatus('☁ 正在儲存到雲端...');
 
-  const masterContent = generateMasterFile();
-  const layoutData = JSON.stringify({
+  const data = {
+    masterContent: generateMasterFile(),
     posCache: S.posCache,
     nodeStyles: S.nodeStyles,
     savedAt: new Date().toISOString()
-  }, null, 2);
-
-  const gistsMap = getBinsMap();
-  const existingGistId = gistsMap[key];
-
-  const files = {
-    'master.txt': { content: masterContent || ' ' },
-    'layout.json': { content: layoutData }
   };
+
+  const binsMap = getBinsMap();
+  const existingBinId = binsMap[key];
 
   try {
     let response;
-    if (existingGistId) {
-      response = await fetch(`https://api.github.com/gists/${existingGistId}`, {
-        method: 'PATCH',
+    if (existingBinId) {
+      // Update existing bin
+      response = await fetch(`https://api.jsonbin.io/v3/b/${existingBinId}`, {
+        method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github+json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Master-Key': apiKey
         },
-        body: JSON.stringify({
-          description: `ayan_editor_${key}`,
-          files
-        })
+        body: JSON.stringify(data)
       });
     } else {
-      response = await fetch('https://api.github.com/gists', {
+      // Create new bin
+      response = await fetch('https://api.jsonbin.io/v3/b', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github+json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Master-Key': apiKey,
+          'X-Bin-Name': `ayan_editor_${key}`
         },
-        body: JSON.stringify({
-          description: `ayan_editor_${key}`,
-          public: false,
-          files
-        })
+        body: JSON.stringify(data)
       });
     }
 
@@ -1970,14 +2058,14 @@ async function cloudSave() {
     }
 
     const result = await response.json();
-    if (!existingGistId && result.id) {
-      gistsMap[key] = result.id;
-      setBinsMap(gistsMap);
+    if (!existingBinId && result.metadata?.id) {
+      binsMap[key] = result.metadata.id;
+      setBinsMap(binsMap);
     }
 
     setCurrentProject(key);
-    setStatus(`☁ 已儲存到 GitHub Gist [${key}]`);
-    alert(`雲端存檔成功！\n\n專案代碼：${key}\nGist ID：${result.id}\n\n下次在任何裝置輸入相同的 GitHub Token 即可讀取。`);
+    setStatus(`☁ 已儲存到雲端 [${key}]`);
+    alert(`雲端存檔成功！\n\n專案代碼：${key}\n\n下次在任何裝置輸入相同的 API Key 和專案代碼即可讀取。`);
   } catch (err) {
     setStatus('☁ 儲存失敗');
     alert('雲端儲存失敗：' + err.message);
@@ -1985,96 +2073,31 @@ async function cloudSave() {
 }
 
 async function cloudLoad() {
-  const token = getApiKey();
-  if (!token) {
-    alert('請先設定 GitHub Token！\n\n點擊「☁ 雲端 → 設定 GitHub Token」');
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('請先設定 API Key！\n\n點擊「☁ 雲端 → 設定 API Key」');
     return;
   }
 
-  // Try to list user's gists and let them pick
-  setStatus('☁ 正在從 GitHub 載入 Gist 清單...');
-  let gistList = [];
-  try {
-    const listResp = await fetch('https://api.github.com/gists?per_page=100', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
-    });
-    if (listResp.ok) {
-      const allGists = await listResp.json();
-      gistList = allGists.filter(g => g.description && g.description.startsWith('ayan_editor_'));
-    }
-  } catch (e) { /* ignore list error, fall back to manual input */ }
+  const projectKey = prompt('請輸入要讀取的專案代碼：');
+  if (!projectKey || !projectKey.trim()) return;
+  const key = projectKey.trim().toLowerCase();
 
-  let gistId, key;
-  const gistsMap = getBinsMap();
+  const binsMap = getBinsMap();
+  let binId = binsMap[key];
 
-  if (gistList.length > 0) {
-    // Build selection prompt
-    const lines = gistList.map((g, i) => {
-      const projName = g.description.replace('ayan_editor_', '');
-      const date = new Date(g.updated_at).toLocaleString();
-      return `${i + 1}. ${projName}（${date}）`;
-    });
-    const choice = prompt(
-      `找到 ${gistList.length} 個雲端專案：\n\n` +
-      lines.join('\n') +
-      `\n\n請輸入編號選擇，或輸入 Gist ID 直接載入：`
-    );
-    if (!choice || !choice.trim()) { setStatus('就緒'); return; }
-
-    const num = parseInt(choice.trim());
-    if (num >= 1 && num <= gistList.length) {
-      const selected = gistList[num - 1];
-      gistId = selected.id;
-      key = selected.description.replace('ayan_editor_', '');
-    } else {
-      // Treat as manual Gist ID
-      gistId = choice.trim();
-      key = prompt('請輸入此專案的代碼（用於本地識別）：');
-      if (!key || !key.trim()) { setStatus('就緒'); return; }
-      key = key.trim().toLowerCase();
-    }
-  } else {
-    // No gists found or list failed — fall back to manual input
-    const localKeys = Object.keys(gistsMap);
-    if (localKeys.length > 0) {
-      const localList = localKeys.map((k, i) => `${i + 1}. ${k}`).join('\n');
-      const choice = prompt(
-        `本地記錄的專案：\n\n${localList}\n\n` +
-        `請輸入編號選擇，或輸入 Gist ID 直接載入：`
-      );
-      if (!choice || !choice.trim()) { setStatus('就緒'); return; }
-
-      const num = parseInt(choice.trim());
-      if (num >= 1 && num <= localKeys.length) {
-        key = localKeys[num - 1];
-        gistId = gistsMap[key];
-      } else {
-        gistId = choice.trim();
-        key = prompt('請輸入此專案的代碼（用於本地識別）：');
-        if (!key || !key.trim()) { setStatus('就緒'); return; }
-        key = key.trim().toLowerCase();
-      }
-    } else {
-      const manualId = prompt('請輸入 Gist ID：\n（可從 GitHub Gist 頁面 URL 最後一段複製）');
-      if (!manualId || !manualId.trim()) { setStatus('就緒'); return; }
-      gistId = manualId.trim();
-      key = prompt('請輸入此專案的代碼（用於本地識別）：');
-      if (!key || !key.trim()) { setStatus('就緒'); return; }
-      key = key.trim().toLowerCase();
-    }
+  // If not in local cache, try to find by searching (requires bin ID input)
+  if (!binId) {
+    const manualId = prompt(`找不到專案 [${key}] 的本地記錄。\n\n如果你在其他裝置儲存過，請輸入 Bin ID：\n（可在 jsonbin.io 的 Bins 頁面找到）\n\n或按取消放棄。`);
+    if (!manualId || !manualId.trim()) return;
+    binId = manualId.trim();
   }
 
-  setStatus('☁ 正在從 GitHub Gist 讀取...');
+  setStatus('☁ 正在從雲端讀取...');
 
   try {
-    const response = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+      headers: { 'X-Master-Key': apiKey }
     });
 
     if (!response.ok) {
@@ -2082,43 +2105,26 @@ async function cloudLoad() {
       throw new Error(err.message || '讀取失敗');
     }
 
-    const gist = await response.json();
+    const result = await response.json();
+    const data = result.record;
 
-    // Read master.txt
-    const masterFile = gist.files['master.txt'];
-    if (!masterFile) {
-      throw new Error('Gist 中找不到 master.txt');
-    }
-    const masterContent = masterFile.content;
-
-    // Read layout.json (optional)
-    const layoutFile = gist.files['layout.json'];
-    if (layoutFile) {
-      try {
-        const layout = JSON.parse(layoutFile.content);
-        S.posCache   = layout.posCache   || {};
-        S.nodeStyles = layout.nodeStyles || {};
-      } catch (e) {
-        console.warn('layout.json 解析失敗，略過', e);
-      }
-    } else {
-      S.posCache = {};
-      S.nodeStyles = {};
+    if (!data.masterContent) {
+      throw new Error('資料格式不正確');
     }
 
-    // Save gist ID to local cache
-    gistsMap[key] = gistId;
-    setBinsMap(gistsMap);
+    // Save bin ID to local cache
+    binsMap[key] = binId;
+    setBinsMap(binsMap);
 
-    // Load master content
-    parseMasterFile(masterContent);
+    // Load data
+    S.posCache    = data.posCache    || {};
+    S.nodeStyles  = data.nodeStyles  || {};
+    parseMasterFile(data.masterContent);
     updateBadges();
 
-    const savedAt = layoutFile
-      ? (() => { try { return new Date(JSON.parse(layoutFile.content).savedAt).toLocaleString(); } catch { return '未知'; } })()
-      : '未知';
+    const savedAt = data.savedAt ? new Date(data.savedAt).toLocaleString() : '未知';
     setCurrentProject(key);
-    setStatus(`☁ 已從 GitHub Gist 載入 [${key}]`);
+    setStatus(`☁ 已從雲端載入 [${key}]`);
 
     // Switch to first chapter with content
     const firstKey = [...CH_KEYS, 'Extra'].find(k => {
@@ -2133,6 +2139,415 @@ async function cloudLoad() {
     setStatus('☁ 讀取失敗');
     alert('雲端讀取失敗：' + err.message);
   }
+}
+
+// ═══════════════════════════════════════════════════
+//  Command Palette  (type / in editor to trigger)
+// ═══════════════════════════════════════════════════
+
+const CMD_CATALOG = [
+  // ── 立繪 ──
+  { t:'Call_0:$',  d:'左邊呼叫角色',  c:'立繪' },
+  { t:'Call_1:$',  d:'中間呼叫角色',  c:'立繪' },
+  { t:'Call_2:$',  d:'右邊呼叫角色',  c:'立繪' },
+  { t:'Close_0',   d:'關閉左邊角色',  c:'立繪' },
+  { t:'Close_1',   d:'關閉中間角色',  c:'立繪' },
+  { t:'Close_2',   d:'關閉右邊角色',  c:'立繪' },
+  // ── 動畫：滑入 ──
+  { t:'SlideIn_0',    d:'左位滑入（預設從左）',  c:'動畫' },
+  { t:'SlideIn_1',    d:'中位滑入（預設從下）',  c:'動畫' },
+  { t:'SlideIn_2',    d:'右位滑入（預設從右）',  c:'動畫' },
+  { t:'SlideIn_0_L',  d:'左位 從左滑入',  c:'動畫' },
+  { t:'SlideIn_0_R',  d:'左位 從右滑入',  c:'動畫' },
+  { t:'SlideIn_0_U',  d:'左位 從上滑入',  c:'動畫' },
+  { t:'SlideIn_0_D',  d:'左位 從下滑入',  c:'動畫' },
+  { t:'SlideIn_1_L',  d:'中位 從左滑入',  c:'動畫' },
+  { t:'SlideIn_1_R',  d:'中位 從右滑入',  c:'動畫' },
+  { t:'SlideIn_1_U',  d:'中位 從上滑入',  c:'動畫' },
+  { t:'SlideIn_1_D',  d:'中位 從下滑入',  c:'動畫' },
+  { t:'SlideIn_2_L',  d:'右位 從左滑入',  c:'動畫' },
+  { t:'SlideIn_2_R',  d:'右位 從右滑入',  c:'動畫' },
+  { t:'SlideIn_2_U',  d:'右位 從上滑入',  c:'動畫' },
+  { t:'SlideIn_2_D',  d:'右位 從下滑入',  c:'動畫' },
+  // ── 動畫：滑出 ──
+  { t:'SlideOut_0',   d:'左位滑出（預設向左）',  c:'動畫' },
+  { t:'SlideOut_1',   d:'中位滑出（預設向下）',  c:'動畫' },
+  { t:'SlideOut_2',   d:'右位滑出（預設向右）',  c:'動畫' },
+  { t:'SlideOut_0_L', d:'左位 向左滑出',  c:'動畫' },
+  { t:'SlideOut_0_R', d:'左位 向右滑出',  c:'動畫' },
+  { t:'SlideOut_0_U', d:'左位 向上滑出',  c:'動畫' },
+  { t:'SlideOut_0_D', d:'左位 向下滑出',  c:'動畫' },
+  { t:'SlideOut_1_L', d:'中位 向左滑出',  c:'動畫' },
+  { t:'SlideOut_1_R', d:'中位 向右滑出',  c:'動畫' },
+  { t:'SlideOut_1_U', d:'中位 向上滑出',  c:'動畫' },
+  { t:'SlideOut_1_D', d:'中位 向下滑出',  c:'動畫' },
+  { t:'SlideOut_2_L', d:'右位 向左滑出',  c:'動畫' },
+  { t:'SlideOut_2_R', d:'右位 向右滑出',  c:'動畫' },
+  { t:'SlideOut_2_U', d:'右位 向上滑出',  c:'動畫' },
+  { t:'SlideOut_2_D', d:'右位 向下滑出',  c:'動畫' },
+  // ── 動畫：淡入淡出 ──
+  { t:'FadeIn_0',   d:'左位淡入',  c:'動畫' },
+  { t:'FadeIn_1',   d:'中位淡入',  c:'動畫' },
+  { t:'FadeIn_2',   d:'右位淡入',  c:'動畫' },
+  { t:'FadeOut_0',  d:'左位淡出',  c:'動畫' },
+  { t:'FadeOut_1',  d:'中位淡出',  c:'動畫' },
+  { t:'FadeOut_2',  d:'右位淡出',  c:'動畫' },
+  // ── 動畫：全螢幕黑幕 ──
+  { t:'ScreenFadeOut_$', d:'全螢幕淡出黑幕（填秒數）', c:'動畫' },
+  { t:'ScreenFadeIn_$',  d:'全螢幕淡入回復（填秒數）', c:'動畫' },
+  // ── 光線 ──
+  { t:'LC0_Dark',   d:'左位角色變暗',  c:'光線' },
+  { t:'LC0_Light',  d:'左位角色恢復',  c:'光線' },
+  { t:'LC1_Dark',   d:'中位角色變暗',  c:'光線' },
+  { t:'LC1_Light',  d:'中位角色恢復',  c:'光線' },
+  { t:'LC2_Dark',   d:'右位角色變暗',  c:'光線' },
+  { t:'LC2_Light',  d:'右位角色恢復',  c:'光線' },
+  { t:'LCbg_Dark',  d:'背景變暗',      c:'光線' },
+  { t:'LCbg_Light', d:'背景恢復',      c:'光線' },
+  // ── 背景 / CG ──
+  { t:'SetBG_$',  d:'設定背景（填名稱）',      c:'背景' },
+  { t:'CBG_$',    d:'更換背景-行內（填名稱）',  c:'背景' },
+  { t:'CCG_$',    d:'顯示 CG（填名稱）',        c:'背景' },
+  // ── 音效 ──
+  { t:'Aubgm_$',     d:'播放 BGM（填編號）',   c:'音效' },
+  { t:'Ausfx_$',     d:'播放音效（填編號）',   c:'音效' },
+  { t:'AuStop_0',    d:'停止 BGM',             c:'音效' },
+  { t:'Voice_$',     d:'播放語音（填編號）',   c:'音效' },
+  { t:'ClearVoice',  d:'清除語音',             c:'音效' },
+  // ── 特效 ──
+  { t:'Shake_screen', d:'畫面震動',      c:'特效' },
+  { t:'Shake_box',    d:'對話框震動',    c:'特效' },
+  { t:'TextShake',    d:'文字震動效果',  c:'特效' },
+  { t:'TextWave',     d:'文字波浪效果',  c:'特效' },
+  { t:'TextStop',     d:'停止文字特效',  c:'特效' },
+  // ── 介面 ──
+  { t:'Tbox_Open',   d:'顯示對話框',     c:'介面' },
+  { t:'Tbox_Close',  d:'隱藏對話框',     c:'介面' },
+  { t:'Delay_$',     d:'等待秒數',       c:'介面' },
+  // ── 旗標 ──
+  { t:'setflag:$:',       d:'設定旗標值',   c:'旗標' },
+  { t:'addflag:$:',       d:'累加旗標值',   c:'旗標' },
+  { t:'GetBook_$',        d:'獲得秘籍',     c:'旗標' },
+  { t:'Achievement_$',    d:'解鎖成就',     c:'旗標' },
+  // ── 流程 ──
+  { t:'G_$',              d:'跳轉 Group',          c:'流程' },
+  { t:'S_$',              d:'顯示選項',            c:'流程' },
+  { t:'IF_$:G_:G_',       d:'條件分支',            c:'流程' },
+  { t:'GOSCENE_$',        d:'跳轉場景',            c:'流程' },
+  { t:'GOCHAPTER_$',      d:'章節轉場',            c:'流程' },
+  { t:'LOADCHAPTER_$',    d:'載入章節',            c:'流程' },
+  { t:'LOADEXTRA_$',      d:'載入支線',            c:'流程' },
+  { t:'BattleSetting_$',  d:'進入戰鬥',            c:'流程' },
+  { t:'RETURNMAIN',       d:'返回主線（+1回合）',  c:'流程' },
+  { t:'FUNC:swipe:$:',    d:'場景過場動畫',        c:'流程' },
+  // ── 特殊 ──
+  { t:'gameover',          d:'Game Over',         c:'特殊' },
+  { t:'non_reduceevent',   d:'不推進回合',        c:'特殊' },
+  { t:'addcurrentround',   d:'手動 +1 回合',      c:'特殊' },
+  // ── ExDialogue ──
+  { t:'exdialogue_1',  d:'開啟全螢幕文字場景',  c:'ExDlg' },
+  { t:'exdialogue_0',  d:'關閉全螢幕文字場景',  c:'ExDlg' },
+  { t:'set_exbg_$',    d:'設定 ExDlg 背景',     c:'ExDlg' },
+  { t:'ex_clear',      d:'清空 ExDlg 文字',     c:'ExDlg' },
+  { t:'blank',         d:'插入空白行',           c:'ExDlg' },
+];
+
+let paletteVisible = false;
+let paletteSlashPos = -1;
+let paletteSelIdx = 0;
+let paletteFiltered = [];
+
+function showPalette(slashPos) {
+  paletteSlashPos = slashPos;
+  paletteSelIdx = 0;
+  paletteVisible = true;
+  filterPalette('');
+}
+
+function hidePalette() {
+  paletteVisible = false;
+  paletteSlashPos = -1;
+  const el = document.getElementById('cmd-palette');
+  if (el) el.classList.remove('open');
+}
+
+function filterPalette(query) {
+  const q = query.toLowerCase();
+  paletteFiltered = q
+    ? CMD_CATALOG.filter(item =>
+        item.t.toLowerCase().includes(q) ||
+        item.d.toLowerCase().includes(q) ||
+        item.c.toLowerCase().includes(q))
+    : CMD_CATALOG.slice();
+  paletteSelIdx = Math.max(0, Math.min(paletteSelIdx, paletteFiltered.length - 1));
+  renderPaletteItems();
+}
+
+function renderPaletteItems() {
+  const el = document.getElementById('cmd-palette');
+  if (paletteFiltered.length === 0) {
+    el.innerHTML = '<div class="cp-empty">沒有符合的指令</div>';
+    el.classList.add('open');
+    positionPalette();
+    return;
+  }
+
+  const items = paletteFiltered.map((item, i) => {
+    const label = escHtml('{' + item.t.replace(/\$/g, '') + '}');
+    return `<div class="cp-item${i === paletteSelIdx ? ' sel' : ''}"
+                 onmousedown="palettePickItem(${i})"
+                 onmouseenter="paletteSelIdx=${i};renderPaletteItems()">
+      <span class="cp-cmd">${label}</span>
+      <span class="cp-desc">${escHtml(item.d)}</span>
+      <span class="cp-cat">${escHtml(item.c)}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = items + '<div class="cp-hint">↑↓ 選擇 · Enter 插入 · Esc 關閉</div>';
+  el.classList.add('open');
+  positionPalette();
+
+  const selEl = el.querySelector('.sel');
+  if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+}
+
+function positionPalette() {
+  const editor = document.getElementById('modal-editor');
+  const el = document.getElementById('cmd-palette');
+  const wrap = document.getElementById('editor-wrap');
+
+  const textBefore = editor.value.substring(0, editor.selectionEnd);
+  const lineNum = textBefore.split('\n').length;
+  const lh = parseFloat(getComputedStyle(editor).lineHeight) || (modalFontSize * 1.6);
+  const pad = parseFloat(getComputedStyle(editor).paddingTop) || 8;
+
+  let top = pad + lineNum * lh - editor.scrollTop;
+  const wrapH = wrap.clientHeight;
+  const palH = Math.min(el.scrollHeight, 220);
+
+  if (top + palH > wrapH) top = Math.max(0, top - palH - lh);
+  el.style.top = top + 'px';
+}
+
+function palettePickItem(idx) {
+  const item = paletteFiltered[idx];
+  if (!item) return;
+
+  const editor = document.getElementById('modal-editor');
+  const before = editor.value.substring(0, paletteSlashPos);
+  const after  = editor.value.substring(editor.selectionEnd);
+
+  let template = item.t;
+  const cursorMarker = template.indexOf('$');
+  if (cursorMarker >= 0) template = template.replace(/\$/g, '');
+
+  const cmd = '{' + template + '}';
+  editor.value = before + cmd + after;
+
+  const cursorPos = cursorMarker >= 0
+    ? before.length + 1 + cursorMarker   // inside {}, at $ position
+    : before.length + cmd.length;         // after closing }
+
+  editor.selectionStart = editor.selectionEnd = cursorPos;
+  editor.focus();
+  hidePalette();
+  syncHighlight();
+}
+
+function initCommandPalette() {
+  const editor = document.getElementById('modal-editor');
+  const palette = document.getElementById('cmd-palette');
+
+  // Prevent palette clicks from stealing focus
+  palette.addEventListener('mousedown', e => e.preventDefault());
+
+  // Close palette on click inside textarea
+  editor.addEventListener('mousedown', () => { if (paletteVisible) hidePalette(); });
+
+  // Keyboard navigation
+  editor.addEventListener('keydown', e => {
+    if (!paletteVisible) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); e.stopPropagation();
+      paletteSelIdx = Math.min(paletteSelIdx + 1, paletteFiltered.length - 1);
+      renderPaletteItems();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); e.stopPropagation();
+      paletteSelIdx = Math.max(paletteSelIdx - 1, 0);
+      renderPaletteItems();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault(); e.stopPropagation();
+      palettePickItem(paletteSelIdx);
+    } else if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      hidePalette();
+    } else if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+      hidePalette();
+    }
+  });
+
+  // Detect "/" and filter as user types
+  editor.addEventListener('input', () => {
+    if (paletteVisible) {
+      const cur = editor.selectionEnd;
+      if (cur <= paletteSlashPos) { hidePalette(); return; }
+      const query = editor.value.substring(paletteSlashPos + 1, cur);
+      if (/[\n]/.test(query) || query.startsWith('/')) { hidePalette(); return; }
+      filterPalette(query);
+    } else {
+      const cur = editor.selectionEnd;
+      if (cur > 0 && editor.value[cur - 1] === '/') {
+        showPalette(cur - 1);
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  Command Sidebar (clickable button panel)
+// ═══════════════════════════════════════════════════
+
+let csSizeClass = 'sz-m'; // s | m | l
+
+function buildCmdSidebar() {
+  const sb = document.getElementById('cmd-sidebar');
+  // Group items by category, preserve insertion order
+  const groups = new Map();
+  CMD_CATALOG.forEach((item, idx) => {
+    if (!groups.has(item.c)) groups.set(item.c, []);
+    groups.get(item.c).push({ ...item, idx });
+  });
+
+  // Sub-group definitions for '動畫' category
+  const animSubs = [
+    { prefix: 'SlideIn_',    label: '滑入 SlideIn' },
+    { prefix: 'SlideOut_',   label: '滑出 SlideOut' },
+    { prefix: 'FadeIn_',     label: '淡入 FadeIn' },
+    { prefix: 'FadeOut_',    label: '淡出 FadeOut' },
+    { prefix: 'ScreenFade',  label: '螢幕黑幕' },
+  ];
+
+  // Toolbar: size buttons
+  let html = `<div class="cs-toolbar">
+    <span>大小</span>
+    <button class="cs-size-btn" onclick="setCsBtnSize('sz-s')" title="小">S</button>
+    <button class="cs-size-btn active" onclick="setCsBtnSize('sz-m')" title="中">M</button>
+    <button class="cs-size-btn" onclick="setCsBtnSize('sz-l')" title="大">L</button>
+    <span style="flex:1"></span>
+    <button class="cs-size-btn" onclick="csCollapseAll(true)" title="全部收合">⊟</button>
+    <button class="cs-size-btn" onclick="csCollapseAll(false)" title="全部展開">⊞</button>
+  </div>`;
+
+  html += '<div class="cs-content">';
+  for (const [cat, items] of groups) {
+    html += `<div class="cs-cat ${csSizeClass}" onclick="this.classList.toggle('collapsed')">${escHtml(cat)}</div>`;
+    html += '<div class="cs-group">';
+
+    if (cat === '動畫') {
+      for (const sub of animSubs) {
+        const matched = items.filter(it => it.t.replace(/\$/g,'').startsWith(sub.prefix));
+        if (!matched.length) continue;
+        html += `<div class="cs-sub ${csSizeClass}">${sub.label}</div>`;
+        matched.forEach(it => { html += sidebarBtn(it); });
+      }
+    } else {
+      items.forEach(it => { html += sidebarBtn(it); });
+    }
+
+    html += '</div>';
+  }
+  html += '</div>';
+  sb.innerHTML = html;
+}
+
+function setCsBtnSize(sz) {
+  csSizeClass = sz;
+  // Update size-btn active state
+  document.querySelectorAll('.cs-size-btn').forEach(b => b.classList.remove('active'));
+  // The first 3 size buttons (S/M/L)
+  const idx = { 'sz-s': 0, 'sz-m': 1, 'sz-l': 2 }[sz];
+  const btns = document.querySelectorAll('.cs-toolbar .cs-size-btn');
+  if (btns[idx]) btns[idx].classList.add('active');
+  // Apply class to all buttons, cats, subs
+  document.querySelectorAll('.cs-btn').forEach(el => { el.className = el.className.replace(/sz-\w/g, '') + ' ' + sz; });
+  document.querySelectorAll('.cs-cat').forEach(el => { el.className = el.className.replace(/sz-\w/g, '') + ' ' + sz; });
+  document.querySelectorAll('.cs-sub').forEach(el => { el.className = el.className.replace(/sz-\w/g, '') + ' ' + sz; });
+}
+
+function csCollapseAll(collapse) {
+  document.querySelectorAll('.cs-cat').forEach(el => {
+    if (collapse) el.classList.add('collapsed');
+    else el.classList.remove('collapsed');
+  });
+}
+
+function sidebarBtn(item) {
+  const label = item.t.replace(/\$/g, '');
+  const tip = escHtml('{' + label + '} \u2014 ' + item.d);
+  return `<button class="cs-btn ${csSizeClass}" title="${tip}" onmousedown="event.preventDefault();sidebarInsert(${item.idx})">${escHtml(label)}</button>`;
+}
+
+function sidebarInsert(catalogIdx) {
+  const item = CMD_CATALOG[catalogIdx];
+  if (!item) return;
+  const editor = document.getElementById('modal-editor');
+
+  const start = editor.selectionStart;
+  const end   = editor.selectionEnd;
+  const before = editor.value.substring(0, start);
+  const after  = editor.value.substring(end);
+
+  let template = item.t;
+  const cm = template.indexOf('$');
+  if (cm >= 0) template = template.replace(/\$/g, '');
+
+  const cmd = '{' + template + '}';
+  editor.value = before + cmd + after;
+
+  const cursorPos = cm >= 0
+    ? before.length + 1 + cm
+    : before.length + cmd.length;
+  editor.selectionStart = editor.selectionEnd = cursorPos;
+  editor.focus();
+  syncHighlight();
+}
+
+function toggleCmdSidebar() {
+  const sb  = document.getElementById('cmd-sidebar');
+  const btn = document.getElementById('sidebar-toggle');
+  sb.classList.toggle('hidden');
+  btn.classList.toggle('active', !sb.classList.contains('hidden'));
+}
+
+function initSidebarDrag() {
+  const handle = document.getElementById('sidebar-drag');
+  const sb = document.getElementById('cmd-sidebar');
+  let dragging = false, startX = 0, startW = 0;
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startW = sb.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const w = Math.max(100, Math.min(400, startW + (e.clientX - startX)));
+    sb.style.width = w + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
 }
 
 // ═══════════════════════════════════════════════════
@@ -2167,6 +2582,9 @@ initRubberBand();
 initModalDrag();
 initModalResize();
 initModalZoom();
+initCommandPalette();
+buildCmdSidebar();
+initSidebarDrag();
 </script>
 </body>
 </html>
