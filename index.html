@@ -355,6 +355,17 @@ input[type=file] { display:none; }
 .cs-cat.sz-s  { font-size:9px; }
 .cs-cat.sz-m  { font-size:10px; }
 .cs-cat.sz-l  { font-size:11px; }
+/* recent-used row */
+.cs-recent {
+  flex-shrink:0; padding:6px 6px 4px; border-bottom:1px solid #30363d;
+  background:#13171d;
+}
+.cs-recent .cs-sub { color:#e3b341; font-style:normal; }
+/* LC combine widget */
+.lc-widget { display:flex; flex-direction:column; gap:3px; width:100%; }
+.lc-row { display:flex; flex-wrap:wrap; gap:2px; }
+.lc-tgt.active { background:#1f6feb; border-color:#1f6feb; color:#fff; }
+.lc-state { flex:1; min-width:40px; text-align:center; }
 /* drag handle between sidebar and editor */
 #sidebar-drag {
   width:6px; flex-shrink:0; cursor:col-resize;
@@ -2431,8 +2442,11 @@ const CMD_CATALOG = [
   // ── 旗標 ──
   { t:'setflag:$:',       d:'設定旗標值',   c:'旗標' },
   { t:'addflag:$:',       d:'累加旗標值',   c:'旗標' },
-  { t:'GetBook_$',        d:'獲得秘籍',     c:'旗標' },
   { t:'Achievement_$',    d:'解鎖成就',     c:'旗標' },
+  // ── 養成 ──
+  { t:'GetBook_$',            d:'獲得秘籍',                    c:'養成' },
+  { t:'AddMeridianPoints_$',  d:'經脈點數累加（可負，如 -5）', c:'養成' },
+  { t:'set_equip_skill:$',    d:'設定裝備招式',                c:'養成' },
   // ── 流程 ──
   { t:'G_$',              d:'跳轉 Group',          c:'流程' },
   { t:'S_$',              d:'顯示選項',            c:'流程' },
@@ -2445,15 +2459,22 @@ const CMD_CATALOG = [
   { t:'RETURNMAIN',       d:'返回主線（+1回合）',  c:'流程' },
   { t:'FUNC:swipe:$:',    d:'場景過場動畫',        c:'流程' },
   // ── 特殊 ──
-  { t:'gameover',          d:'Game Over',         c:'特殊' },
-  { t:'non_reduceevent',   d:'不推進回合',        c:'特殊' },
-  { t:'addcurrentround',   d:'手動 +1 回合',      c:'特殊' },
+  { t:'gameover',          d:'Game Over',                 c:'特殊' },
+  { t:'gameclear',         d:'遊戲通關（Game Clear 面板）', c:'特殊' },
+  { t:'AutoPlay',          d:'開啟自動播放',              c:'特殊' },
+  { t:'AutoPlay_0',        d:'關閉自動播放',              c:'特殊' },
+  { t:'setup_$',           d:'登記探索場景 UI 引導套件',  c:'特殊' },
+  { t:'non_reduceevent',   d:'不推進回合',                c:'特殊' },
+  { t:'addcurrentround',   d:'手動 +1 回合',              c:'特殊' },
   // ── ExDialogue ──
   { t:'exdialogue_1',  d:'開啟全螢幕文字場景',  c:'ExDlg' },
   { t:'exdialogue_0',  d:'關閉全螢幕文字場景',  c:'ExDlg' },
   { t:'set_exbg_$',    d:'設定 ExDlg 背景',     c:'ExDlg' },
   { t:'ex_clear',      d:'清空 ExDlg 文字',     c:'ExDlg' },
   { t:'blank',         d:'插入空白行',           c:'ExDlg' },
+  // ── 選項（Selection 專用） ──
+  { t:'Fatal',  d:'重大分歧選項警示（紅字）— 置於選項文字前', c:'選項' },
+  { t:'f_$',    d:'選項顯示條件（如 f_旗標>=值）— 置於選項文字後', c:'選項' },
 ];
 
 let paletteVisible = false;
@@ -2556,6 +2577,7 @@ function palettePickItem(idx) {
   editor.focus();
   hidePalette();
   syncHighlight();
+  pushRecent(item.t);
 }
 
 function initCommandPalette() {
@@ -2643,6 +2665,9 @@ function buildCmdSidebar() {
     <button class="cs-size-btn" onclick="csCollapseAll(false)" title="全部展開">⊞</button>
   </div>`;
 
+  // Recent-used row (filled by renderRecent)
+  html += '<div id="cs-recent" class="cs-recent"></div>';
+
   html += '<div class="cs-content">';
   for (const [cat, items] of groups) {
     html += `<div class="cs-cat ${csSizeClass}" onclick="this.classList.toggle('collapsed')">${escHtml(cat)}</div>`;
@@ -2655,6 +2680,8 @@ function buildCmdSidebar() {
         html += `<div class="cs-sub ${csSizeClass}">${sub.label}</div>`;
         matched.forEach(it => { html += sidebarBtn(it); });
       }
+    } else if (cat === '光線') {
+      html += lcWidgetHtml();
     } else {
       items.forEach(it => { html += sidebarBtn(it); });
     }
@@ -2663,6 +2690,34 @@ function buildCmdSidebar() {
   }
   html += '</div>';
   sb.innerHTML = html;
+  renderRecent();
+}
+
+// ── 光線組合 widget：選目標(LC0/1/2/bg) + 亮/暗 ──
+let lcTarget = '0';
+function lcWidgetHtml() {
+  const tgts = [['0','LC0'],['1','LC1'],['2','LC2'],['bg','背景']];
+  let h = '<div class="lc-widget"><div class="lc-row">';
+  tgts.forEach(([v,lab]) => {
+    h += `<button class="lc-tgt cs-btn ${csSizeClass}${v===lcTarget?' active':''}" data-t="${v}" `
+       + `onmousedown="event.preventDefault();lcSetTarget('${v}')">${lab}</button>`;
+  });
+  h += '</div><div class="lc-row">';
+  h += `<button class="lc-state cs-btn ${csSizeClass}" title="{LCx_Light} 恢復" `
+     + `onmousedown="event.preventDefault();lcInsert('Light')">☀ 亮</button>`;
+  h += `<button class="lc-state cs-btn ${csSizeClass}" title="{LCx_Dark} 變暗" `
+     + `onmousedown="event.preventDefault();lcInsert('Dark')">🌙 暗</button>`;
+  h += '</div></div>';
+  return h;
+}
+function lcSetTarget(t) {
+  lcTarget = t;
+  document.querySelectorAll('.lc-tgt').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+}
+function lcInsert(state) {
+  const t = 'LC' + lcTarget + '_' + state;
+  insertTemplate(t);
+  pushRecent(t);
 }
 
 function setCsBtnSize(sz) {
@@ -2692,21 +2747,17 @@ function sidebarBtn(item) {
   return `<button class="cs-btn ${csSizeClass}" title="${tip}" onmousedown="event.preventDefault();sidebarInsert(${item.idx})">${escHtml(label)}</button>`;
 }
 
-function sidebarInsert(catalogIdx) {
-  const item = CMD_CATALOG[catalogIdx];
-  if (!item) return;
+// 共用插入核心：template 可含 $ 標記游標位置
+function insertTemplate(template) {
   const editor = document.getElementById('modal-editor');
-
   const start = editor.selectionStart;
   const end   = editor.selectionEnd;
   const before = editor.value.substring(0, start);
   const after  = editor.value.substring(end);
 
-  let template = item.t;
   const cm = template.indexOf('$');
-  if (cm >= 0) template = template.replace(/\$/g, '');
-
-  const cmd = '{' + template + '}';
+  const clean = template.replace(/\$/g, '');
+  const cmd = '{' + clean + '}';
   editor.value = before + cmd + after;
 
   const cursorPos = cm >= 0
@@ -2715,6 +2766,47 @@ function sidebarInsert(catalogIdx) {
   editor.selectionStart = editor.selectionEnd = cursorPos;
   editor.focus();
   syncHighlight();
+}
+
+function sidebarInsert(catalogIdx) {
+  const item = CMD_CATALOG[catalogIdx];
+  if (!item) return;
+  insertTemplate(item.t);
+  pushRecent(item.t);
+}
+
+// ── 最近使用的指令（localStorage 持久化，上限 10）──
+let recentCmds = [];
+try { recentCmds = JSON.parse(localStorage.getItem('ayan_recent_cmds') || '[]'); } catch (e) { recentCmds = []; }
+
+function pushRecent(template) {
+  recentCmds = recentCmds.filter(t => t !== template);
+  recentCmds.unshift(template);
+  if (recentCmds.length > 10) recentCmds = recentCmds.slice(0, 10);
+  try { localStorage.setItem('ayan_recent_cmds', JSON.stringify(recentCmds)); } catch (e) {}
+  renderRecent();
+}
+
+function renderRecent() {
+  const el = document.getElementById('cs-recent');
+  if (!el) return;
+  if (!recentCmds.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
+  let h = `<div class="cs-sub ${csSizeClass}" style="margin-top:0">最近使用</div><div class="cs-group">`;
+  recentCmds.forEach((t, i) => {
+    const label = t.replace(/\$/g, '');
+    h += `<button class="cs-btn ${csSizeClass}" title="{${escHtml(label)}}" `
+       + `onmousedown="event.preventDefault();recentInsert(${i})">${escHtml(label)}</button>`;
+  });
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+function recentInsert(i) {
+  const t = recentCmds[i];
+  if (t == null) return;
+  insertTemplate(t);
+  pushRecent(t);
 }
 
 function toggleCmdSidebar() {
