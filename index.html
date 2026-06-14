@@ -554,7 +554,7 @@ input[type=file] { display:none; }
           <tr><td><code>{CCG_名稱}</code></td><td>顯示 CG 全屏圖</td></tr>
         </table>
 
-        <h4>角色立繪　<span style="font-size:11px;color:#8b949e">位置：0=左 1=中 2=右</span></h4>
+        <h4>角色立繪　<span style="font-size:11px;color:#8b949e">位置：0=中 1=左 2=右</span></h4>
         <table class="help-table">
           <tr><td><code>{Call_X:角色ID}</code></td><td>呼叫角色到位置 X（不自動動畫）</td></tr>
           <tr><td><code>{Close_X}</code></td><td>關閉位置 X 的角色</td></tr>
@@ -2363,50 +2363,50 @@ async function cloudLoad() {
 
 const CMD_CATALOG = [
   // ── 立繪 ──
-  { t:'Call_0:$',  d:'左邊呼叫角色',  c:'立繪' },
-  { t:'Call_1:$',  d:'中間呼叫角色',  c:'立繪' },
+  { t:'Call_0:$',  d:'中間呼叫角色',  c:'立繪' },
+  { t:'Call_1:$',  d:'左邊呼叫角色',  c:'立繪' },
   { t:'Call_2:$',  d:'右邊呼叫角色',  c:'立繪' },
-  { t:'Close_0',   d:'關閉左邊角色',  c:'立繪' },
-  { t:'Close_1',   d:'關閉中間角色',  c:'立繪' },
+  { t:'Close_0',   d:'關閉中間角色',  c:'立繪' },
+  { t:'Close_1',   d:'關閉左邊角色',  c:'立繪' },
   { t:'Close_2',   d:'關閉右邊角色',  c:'立繪' },
   // ── 動畫：滑入 ──
-  { t:'SlideIn_0',    d:'左位滑入（預設從左）',  c:'動畫' },
-  { t:'SlideIn_1',    d:'中位滑入（預設從下）',  c:'動畫' },
+  { t:'SlideIn_0',    d:'中位滑入（預設從左）',  c:'動畫' },
+  { t:'SlideIn_1',    d:'左位滑入（預設從下）',  c:'動畫' },
   { t:'SlideIn_2',    d:'右位滑入（預設從右）',  c:'動畫' },
-  { t:'SlideIn_0_L',  d:'左位 從左滑入',  c:'動畫' },
-  { t:'SlideIn_0_R',  d:'左位 從右滑入',  c:'動畫' },
-  { t:'SlideIn_0_U',  d:'左位 從上滑入',  c:'動畫' },
-  { t:'SlideIn_0_D',  d:'左位 從下滑入',  c:'動畫' },
-  { t:'SlideIn_1_L',  d:'中位 從左滑入',  c:'動畫' },
-  { t:'SlideIn_1_R',  d:'中位 從右滑入',  c:'動畫' },
-  { t:'SlideIn_1_U',  d:'中位 從上滑入',  c:'動畫' },
-  { t:'SlideIn_1_D',  d:'中位 從下滑入',  c:'動畫' },
+  { t:'SlideIn_0_L',  d:'中位 從左滑入',  c:'動畫' },
+  { t:'SlideIn_0_R',  d:'中位 從右滑入',  c:'動畫' },
+  { t:'SlideIn_0_U',  d:'中位 從上滑入',  c:'動畫' },
+  { t:'SlideIn_0_D',  d:'中位 從下滑入',  c:'動畫' },
+  { t:'SlideIn_1_L',  d:'左位 從左滑入',  c:'動畫' },
+  { t:'SlideIn_1_R',  d:'左位 從右滑入',  c:'動畫' },
+  { t:'SlideIn_1_U',  d:'左位 從上滑入',  c:'動畫' },
+  { t:'SlideIn_1_D',  d:'左位 從下滑入',  c:'動畫' },
   { t:'SlideIn_2_L',  d:'右位 從左滑入',  c:'動畫' },
   { t:'SlideIn_2_R',  d:'右位 從右滑入',  c:'動畫' },
   { t:'SlideIn_2_U',  d:'右位 從上滑入',  c:'動畫' },
   { t:'SlideIn_2_D',  d:'右位 從下滑入',  c:'動畫' },
   // ── 動畫：滑出 ──
-  { t:'SlideOut_0',   d:'左位滑出（預設向左）',  c:'動畫' },
-  { t:'SlideOut_1',   d:'中位滑出（預設向下）',  c:'動畫' },
+  { t:'SlideOut_0',   d:'中位滑出（預設向左）',  c:'動畫' },
+  { t:'SlideOut_1',   d:'左位滑出（預設向下）',  c:'動畫' },
   { t:'SlideOut_2',   d:'右位滑出（預設向右）',  c:'動畫' },
-  { t:'SlideOut_0_L', d:'左位 向左滑出',  c:'動畫' },
-  { t:'SlideOut_0_R', d:'左位 向右滑出',  c:'動畫' },
-  { t:'SlideOut_0_U', d:'左位 向上滑出',  c:'動畫' },
-  { t:'SlideOut_0_D', d:'左位 向下滑出',  c:'動畫' },
-  { t:'SlideOut_1_L', d:'中位 向左滑出',  c:'動畫' },
-  { t:'SlideOut_1_R', d:'中位 向右滑出',  c:'動畫' },
-  { t:'SlideOut_1_U', d:'中位 向上滑出',  c:'動畫' },
-  { t:'SlideOut_1_D', d:'中位 向下滑出',  c:'動畫' },
+  { t:'SlideOut_0_L', d:'中位 向左滑出',  c:'動畫' },
+  { t:'SlideOut_0_R', d:'中位 向右滑出',  c:'動畫' },
+  { t:'SlideOut_0_U', d:'中位 向上滑出',  c:'動畫' },
+  { t:'SlideOut_0_D', d:'中位 向下滑出',  c:'動畫' },
+  { t:'SlideOut_1_L', d:'左位 向左滑出',  c:'動畫' },
+  { t:'SlideOut_1_R', d:'左位 向右滑出',  c:'動畫' },
+  { t:'SlideOut_1_U', d:'左位 向上滑出',  c:'動畫' },
+  { t:'SlideOut_1_D', d:'左位 向下滑出',  c:'動畫' },
   { t:'SlideOut_2_L', d:'右位 向左滑出',  c:'動畫' },
   { t:'SlideOut_2_R', d:'右位 向右滑出',  c:'動畫' },
   { t:'SlideOut_2_U', d:'右位 向上滑出',  c:'動畫' },
   { t:'SlideOut_2_D', d:'右位 向下滑出',  c:'動畫' },
   // ── 動畫：淡入淡出 ──
-  { t:'FadeIn_0',   d:'左位淡入',  c:'動畫' },
-  { t:'FadeIn_1',   d:'中位淡入',  c:'動畫' },
+  { t:'FadeIn_0',   d:'中位淡入',  c:'動畫' },
+  { t:'FadeIn_1',   d:'左位淡入',  c:'動畫' },
   { t:'FadeIn_2',   d:'右位淡入',  c:'動畫' },
-  { t:'FadeOut_0',  d:'左位淡出',  c:'動畫' },
-  { t:'FadeOut_1',  d:'中位淡出',  c:'動畫' },
+  { t:'FadeOut_0',  d:'中位淡出',  c:'動畫' },
+  { t:'FadeOut_1',  d:'左位淡出',  c:'動畫' },
   { t:'FadeOut_2',  d:'右位淡出',  c:'動畫' },
   // ── 動畫：全螢幕黑幕 ──
   { t:'ScreenFadeOut_$', d:'全螢幕淡出黑幕（填秒數）', c:'動畫' },
@@ -2721,7 +2721,7 @@ function ptBtn(label, template, tip) {
        + `onmousedown="event.preventDefault();ptInsert('${template}')">${label}</button>`;
 }
 function portraitWidgetHtml() {
-  const tgts = [['0','0 左'],['1','1 中'],['2','2 右']];
+  const tgts = [['0','0 中'],['1','1 左'],['2','2 右']];
   let h = '<div class="lc-widget"><div class="lc-row">';
   tgts.forEach(([v,lab]) => {
     h += `<button class="pt-tgt cs-btn ${csSizeClass}${v===portraitPos?' active':''}" data-p="${v}" `
