@@ -364,8 +364,9 @@ input[type=file] { display:none; }
 /* LC combine widget */
 .lc-widget { display:flex; flex-direction:column; gap:3px; width:100%; }
 .lc-row { display:flex; flex-wrap:wrap; gap:2px; }
-.lc-tgt.active { background:#1f6feb; border-color:#1f6feb; color:#fff; }
+.lc-tgt.active, .pt-tgt.active { background:#1f6feb; border-color:#1f6feb; color:#fff; }
 .lc-state { flex:1; min-width:40px; text-align:center; }
+.pt-tgt { flex:1; min-width:34px; text-align:center; }
 /* drag handle between sidebar and editor */
 #sidebar-drag {
   width:6px; flex-shrink:0; cursor:col-resize;
@@ -2645,14 +2646,8 @@ function buildCmdSidebar() {
     groups.get(item.c).push({ ...item, idx });
   });
 
-  // Sub-group definitions for '動畫' category
-  const animSubs = [
-    { prefix: 'SlideIn_',    label: '滑入 SlideIn' },
-    { prefix: 'SlideOut_',   label: '滑出 SlideOut' },
-    { prefix: 'FadeIn_',     label: '淡入 FadeIn' },
-    { prefix: 'FadeOut_',    label: '淡出 FadeOut' },
-    { prefix: 'ScreenFade',  label: '螢幕黑幕' },
-  ];
+  // 分類顯示名稱（不改 catalog 的 c 值，只改側欄標題）
+  const catDisplay = { '立繪': '立繪 / 動畫', '動畫': '黑幕 ScreenFade' };
 
   // Toolbar: size buttons
   let html = `<div class="cs-toolbar">
@@ -2670,16 +2665,15 @@ function buildCmdSidebar() {
 
   html += '<div class="cs-content">';
   for (const [cat, items] of groups) {
-    html += `<div class="cs-cat ${csSizeClass}" onclick="this.classList.toggle('collapsed')">${escHtml(cat)}</div>`;
+    html += `<div class="cs-cat ${csSizeClass}" onclick="this.classList.toggle('collapsed')">${escHtml(catDisplay[cat] || cat)}</div>`;
     html += '<div class="cs-group">';
 
-    if (cat === '動畫') {
-      for (const sub of animSubs) {
-        const matched = items.filter(it => it.t.replace(/\$/g,'').startsWith(sub.prefix));
-        if (!matched.length) continue;
-        html += `<div class="cs-sub ${csSizeClass}">${sub.label}</div>`;
-        matched.forEach(it => { html += sidebarBtn(it); });
-      }
+    if (cat === '立繪') {
+      // Call/Close/SlideIn/SlideOut/FadeIn/FadeOut 全併入位置控制台
+      html += portraitWidgetHtml();
+    } else if (cat === '動畫') {
+      // 滑入/滑出/淡入淡出已併入「立繪」控制台，此處只留全螢幕黑幕
+      items.filter(it => it.t.startsWith('ScreenFade')).forEach(it => { html += sidebarBtn(it); });
     } else if (cat === '光線') {
       html += lcWidgetHtml();
     } else {
@@ -2716,6 +2710,52 @@ function lcSetTarget(t) {
 }
 function lcInsert(state) {
   const t = 'LC' + lcTarget + '_' + state;
+  insertTemplate(t);
+  pushRecent(t);
+}
+
+// ── 立繪控制台：選位置(0/1/2) + 動作(呼叫/關閉/淡入淡出/滑入滑出方向) ──
+let portraitPos = '0';
+function ptBtn(label, template, tip) {
+  return `<button class="cs-btn ${csSizeClass}" title="${escHtml(tip || '')}" `
+       + `onmousedown="event.preventDefault();ptInsert('${template}')">${label}</button>`;
+}
+function portraitWidgetHtml() {
+  const tgts = [['0','0 左'],['1','1 中'],['2','2 右']];
+  let h = '<div class="lc-widget"><div class="lc-row">';
+  tgts.forEach(([v,lab]) => {
+    h += `<button class="pt-tgt cs-btn ${csSizeClass}${v===portraitPos?' active':''}" data-p="${v}" `
+       + `onmousedown="event.preventDefault();ptSetPos('${v}')">${lab}</button>`;
+  });
+  h += '</div>';
+  h += `<div class="cs-sub ${csSizeClass}">基本</div><div class="lc-row">`;
+  h += ptBtn('呼叫', 'Call_$P:$', '{Call_位置:角色ID}');
+  h += ptBtn('關閉', 'Close_$P',  '{Close_位置}');
+  h += ptBtn('淡入', 'FadeIn_$P', '{FadeIn_位置}');
+  h += ptBtn('淡出', 'FadeOut_$P','{FadeOut_位置}');
+  h += '</div>';
+  h += `<div class="cs-sub ${csSizeClass}">滑入</div><div class="lc-row">`;
+  h += ptBtn('滑入', 'SlideIn_$P',   '{SlideIn_位置} 預設方向');
+  h += ptBtn('←',   'SlideIn_$P_L', '從左滑入');
+  h += ptBtn('→',   'SlideIn_$P_R', '從右滑入');
+  h += ptBtn('↑',   'SlideIn_$P_U', '從上滑入');
+  h += ptBtn('↓',   'SlideIn_$P_D', '從下滑入');
+  h += '</div>';
+  h += `<div class="cs-sub ${csSizeClass}">滑出</div><div class="lc-row">`;
+  h += ptBtn('滑出', 'SlideOut_$P',   '{SlideOut_位置} 預設方向');
+  h += ptBtn('←',   'SlideOut_$P_L', '向左滑出');
+  h += ptBtn('→',   'SlideOut_$P_R', '向右滑出');
+  h += ptBtn('↑',   'SlideOut_$P_U', '向上滑出');
+  h += ptBtn('↓',   'SlideOut_$P_D', '向下滑出');
+  h += '</div></div>';
+  return h;
+}
+function ptSetPos(p) {
+  portraitPos = p;
+  document.querySelectorAll('.pt-tgt').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+}
+function ptInsert(template) {
+  const t = template.replace(/\$P/g, portraitPos);
   insertTemplate(t);
   pushRecent(t);
 }
